@@ -1,3 +1,2 @@
-# The Hyligotchi
-
+# Hyligotchi
 
