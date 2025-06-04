@@ -137,6 +137,19 @@ pub enum HyliGotchiHealth {
     Sick,
 }
 
+impl Display for HyliGotchiHealth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                HyliGotchiHealth::Healthy => "Healthy",
+                HyliGotchiHealth::Sick => "Sick",
+            },
+        )
+    }
+}
+
 impl Display for HyliGotchiActivity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -154,6 +167,30 @@ impl Display for HyliGotchiActivity {
 pub struct HyliGotchiWorld {
     pub last_tick: u128,
     pub people: BTreeMap<Identity, HyliGotchi>,
+}
+
+impl Display for HyliGotchiWorld {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (user, gotchi) in &self.people {
+            write!(
+                f,
+                "Gotchi: {}, Activity: {}, Health: {}, Food: {}, Sweets: {}, Vitamins: {}\n",
+                gotchi.name,
+                gotchi.activity,
+                gotchi.health,
+                gotchi.food,
+                gotchi.sweets,
+                gotchi.vitamins
+            )?;
+        }
+
+        write!(
+            f,
+            "Last tick: {}, Total gotchis: {}",
+            self.last_tick,
+            self.people.len()
+        )
+    }
 }
 
 /// Enum representing possible events emitted by the contract.
@@ -301,7 +338,7 @@ impl HyliGotchiWorld {
             "Processing tick"
         );
 
-        if current_timestamp - self.last_tick < 60 * 1000 {
+        if current_timestamp - self.last_tick < 10 * 1000 {
             return Err("Tick too soon, please wait".to_string());
         }
 
@@ -354,8 +391,8 @@ impl HyliGotchiWorld {
         self.last_tick = current_timestamp;
 
         Ok(format!(
-            "Tick processed successfully. Block hash: {}, Timestamp: {}",
-            block_hash.0, current_timestamp
+            "Tick processed successfully. Block hash: {}, Timestamp: {}, world state updated. {}",
+            block_hash.0, current_timestamp, self
         ))
     }
 }
