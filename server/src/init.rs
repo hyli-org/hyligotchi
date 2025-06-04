@@ -1,8 +1,9 @@
 use std::{sync::Arc, time::Duration};
 
 use anyhow::{bail, Result};
+use client_sdk::rest_client::NodeApiClient;
 use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiHttpClient};
-use sdk::{api::APIRegisterContract, info, ContractName, ProgramId, StateCommitment, ZkContract};
+use sdk::{api::APIRegisterContract, info, ContractName, ProgramId, StateCommitment};
 use tokio::time::timeout;
 
 pub struct ContractInit {
@@ -43,7 +44,7 @@ async fn init_contract(
         }
         Err(_) => {
             info!("🚀 Registering {} contract", contract.name);
-            node.register_contract(&APIRegisterContract {
+            node.register_contract(APIRegisterContract {
                 verifier: sdk::verifiers::SP1_4.into(),
                 program_id: ProgramId(contract.program_id.to_vec()),
                 state_commitment: contract.initial_state,

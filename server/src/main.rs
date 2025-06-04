@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use app::{AppModule, AppModuleCtx};
 use axum::Router;
 use clap::Parser;
-use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiHttpClient};
+use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiClient, NodeApiHttpClient};
 use conf::Conf;
 use contracts::HYLI_GOTCHI_ELF;
 use hyle_modules::{
@@ -20,6 +20,7 @@ use hyligotchi::HyliGotchiWorld;
 use prometheus::Registry;
 use sdk::api::NodeInfo;
 use sdk::ZkContract;
+use sp1_sdk::{Prover, ProverClient};
 use std::sync::Arc;
 use tracing::{error, info, warn};
 
@@ -58,8 +59,11 @@ async fn main() -> Result<()> {
         IndexerApiHttpClient::new(config.indexer_url.clone()).context("build indexer client")?,
     );
 
+    let local_client = ProverClient::builder().mock().build();
+    let (pk, _) = local_client.setup(HYLI_GOTCHI_ELF);
+
     info!("Building Proving Key");
-    let prover = client_sdk::helpers::sp1::SP1Prover::new(HYLI_GOTCHI_ELF).await;
+    let prover = client_sdk::helpers::sp1::SP1Prover::new(pk).await;
 
     let default_state = HyliGotchiWorld::default();
 
@@ -94,7 +98,6 @@ async fn main() -> Result<()> {
         indexer_client,
         hyligotchi_cn: args.contract_name.into(),
     });
-    let start_height = app_ctx.node_client.get_block_height().await?;
 
     handler.build_module::<AppModule>(app_ctx.clone()).await?;
     handler
@@ -108,12 +111,13 @@ async fn main() -> Result<()> {
     handler
         .build_module::<AutoProver<HyliGotchiWorld>>(
             AutoProverCtx {
-                start_height,
                 data_directory: config.data_directory.clone(),
                 prover: Arc::new(prover),
                 contract_name: app_ctx.hyligotchi_cn.clone(),
                 node: app_ctx.node_client.clone(),
                 default_state: HyliGotchiWorld::default(),
+                buffer_blocks: config.buffer_blocks,
+                max_txs_per_proof: config.max_txs_per_proof,
             }
             .into(),
         )

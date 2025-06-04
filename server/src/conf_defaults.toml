@@ -1,4 +1,4 @@
-
+id = "hyligotchi"
 log_format = "full"
 
 data_directory = "data"
@@ -10,4 +10,13 @@ node_url = "http://localhost:4321"
 indexer_url = "http://localhost:4321"
 
 
-da_address = "127.0.0.1:4141"
+buffer_blocks = 0
+max_txs_per_proof = 100
+
+
+[websocket]
+port = 8081
+ws_path = "/ws"
+health_path = "/ws_health"
+peer_check_interval.secs = 0
+peer_check_interval.nanos = 100_000_000

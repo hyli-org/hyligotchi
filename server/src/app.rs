@@ -9,7 +9,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiHttpClient};
+use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiClient, NodeApiHttpClient};
 
 use hyle_modules::{
     bus::{BusClientReceiver, SharedMessageBus},
@@ -193,7 +193,22 @@ async fn tick(
     // Json(wallet_blobs): Json<[Blob; 2]>,
 ) -> Result<impl IntoResponse, AppError> {
     let auth = AuthHeaders::from_headers(&headers)?;
-    send(ctx, HyliGotchiAction::Tick, auth /*, wallet_blobs*/).await
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| {
+            AppError(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                anyhow::anyhow!("Time error"),
+            )
+        })?
+        .as_millis();
+
+    send(
+        ctx,
+        HyliGotchiAction::Tick(now),
+        auth, /*, wallet_blobs*/
+    )
+    .await
 }
 
 #[derive(Deserialize)]
@@ -266,7 +281,7 @@ async fn send(
 
     let tx_hash = ctx
         .client
-        .send_tx_blob(&BlobTransaction::new(identity.clone(), blobs))
+        .send_tx_blob(BlobTransaction::new(identity.clone(), blobs))
         .await?;
 
     let mut bus = {

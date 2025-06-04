@@ -1,20 +1,30 @@
 use config::{Config, Environment, File};
+use hyle_modules::modules::websocket::WebSocketConfig;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Conf {
+    pub id: String,
     /// The log format to use - "json", "node" or "full" (default)
     pub log_format: String,
     /// Directory name to store node state.
     pub data_directory: PathBuf,
     /// When running only the indexer, the address of the DA server to connect to
+    /// Warning: This NEEDS to be the Rollup node address
     pub da_read_from: String,
+
     pub node_url: String,
     pub indexer_url: String,
 
     pub rest_server_port: u16,
     pub rest_server_max_body_size: usize,
+
+    pub buffer_blocks: u32,
+    pub max_txs_per_proof: usize,
+
+    /// Websocket configuration
+    pub websocket: WebSocketConfig,
 }
 
 impl Conf {

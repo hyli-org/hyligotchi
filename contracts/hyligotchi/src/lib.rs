@@ -48,10 +48,10 @@ impl sdk::ZkContract for HyliGotchiWorld {
             HyliGotchiAction::FeedVitamins(vitamins_amount) => {
                 self.feed_vitamins(user, vitamins_amount, &tx_ctx.block_hash)?
             }
-            HyliGotchiAction::Tick => self.tick(&tx_ctx.block_hash, tx_ctx.timestamp.0)?,
+            HyliGotchiAction::Tick(nonce) => self.tick(&tx_ctx.block_hash, tx_ctx.timestamp.0)?,
         };
 
-        Ok((res, ctx, alloc::vec![]))
+        Ok((res.as_bytes().to_vec(), ctx, alloc::vec![]))
     }
 
     /// In this example, we serialize the full state on-chain.
@@ -226,7 +226,7 @@ pub enum HyliGotchiAction {
     FeedFood(u64),
     FeedSweets(u64),
     FeedVitamins(u64),
-    Tick,
+    Tick(u128),
 }
 
 impl HyliGotchiAction {
