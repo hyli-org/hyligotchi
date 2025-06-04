@@ -62,6 +62,10 @@ impl Module for AppModule {
         let api = Router::new()
             .route("/_health", get(health))
             .route("/api/init", post(init))
+            .route("/api/tick", post(tick))
+            .route("/api/feed/food", post(feed_food))
+            .route("/api/feed/sweets", post(feed_sweets))
+            .route("/api/feed/vitamins", post(feed_vitamins))
             .route("/api/config", get(get_config))
             .with_state(state)
             .layer(cors); // Appliquer le middleware CORS
@@ -137,6 +141,9 @@ impl AuthHeaders {
 pub struct ApiGotchi {
     pub name: String,
     pub activity: String,
+    pub food: u64,
+    pub sweets: u64,
+    pub vitamins: u64,
 }
 
 impl From<HyliGotchi> for ApiGotchi {
@@ -144,6 +151,9 @@ impl From<HyliGotchi> for ApiGotchi {
         ApiGotchi {
             name: hyligotchi.name,
             activity: hyligotchi.activity.to_string(),
+            food: hyligotchi.food,
+            sweets: hyligotchi.sweets,
+            vitamins: hyligotchi.vitamins,
         }
     }
 }
@@ -172,6 +182,65 @@ async fn init(
     send(
         ctx,
         HyliGotchiAction::Init(init_with_name.name),
+        auth, /*, wallet_blobs*/
+    )
+    .await
+}
+
+async fn tick(
+    State(ctx): State<RouterCtx>,
+    headers: HeaderMap,
+    // Json(wallet_blobs): Json<[Blob; 2]>,
+) -> Result<impl IntoResponse, AppError> {
+    let auth = AuthHeaders::from_headers(&headers)?;
+    send(ctx, HyliGotchiAction::Tick, auth /*, wallet_blobs*/).await
+}
+
+#[derive(Deserialize)]
+struct FeedAmount {
+    amount: u64,
+}
+
+async fn feed_food(
+    State(ctx): State<RouterCtx>,
+    headers: HeaderMap,
+    Query(feed_amount): Query<FeedAmount>,
+    // Json(wallet_blobs): Json<[Blob; 2]>,
+) -> Result<impl IntoResponse, AppError> {
+    let auth = AuthHeaders::from_headers(&headers)?;
+    send(
+        ctx,
+        HyliGotchiAction::FeedFood(feed_amount.amount),
+        auth, /*, wallet_blobs*/
+    )
+    .await
+}
+
+async fn feed_sweets(
+    State(ctx): State<RouterCtx>,
+    headers: HeaderMap,
+    Query(feed_amount): Query<FeedAmount>,
+    // Json(wallet_blobs): Json<[Blob; 2]>,
+) -> Result<impl IntoResponse, AppError> {
+    let auth = AuthHeaders::from_headers(&headers)?;
+    send(
+        ctx,
+        HyliGotchiAction::FeedSweets(feed_amount.amount),
+        auth, /*, wallet_blobs*/
+    )
+    .await
+}
+
+async fn feed_vitamins(
+    State(ctx): State<RouterCtx>,
+    headers: HeaderMap,
+    Query(feed_amount): Query<FeedAmount>,
+    // Json(wallet_blobs): Json<[Blob; 2]>,
+) -> Result<impl IntoResponse, AppError> {
+    let auth = AuthHeaders::from_headers(&headers)?;
+    send(
+        ctx,
+        HyliGotchiAction::FeedVitamins(feed_amount.amount),
         auth, /*, wallet_blobs*/
     )
     .await
