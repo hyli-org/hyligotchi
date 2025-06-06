@@ -114,18 +114,14 @@ impl HyliGotchi {
     }
 
     pub fn random_sick(&mut self, rng: &mut impl Rng, block_height: u64) {
-        if self.food < MAX_FOOD / 2
+        if matches!(self.health, HyliGotchiHealth::Healthy) && self.food < MAX_FOOD / 2
             || self.sweets < MAX_SWEETS / 2
-            || self.vitamins < MAX_VITAMINS / 2
         {
             // If the gotchi has less than half of the maximum food, sweets, or vitamins,
             // it becomes sick
             if rng.random_range(0..=1) == 0 {
                 // Randomly decide if the gotchi becomes sick
                 self.health = HyliGotchiHealth::Sick(block_height);
-            } else {
-                // If the gotchi is not hungry, it remains healthy
-                self.health = HyliGotchiHealth::Healthy;
             }
         }
     }
@@ -290,6 +286,13 @@ impl HyliGotchiWorld {
             return Err(format!("No gotchi found for user {user}"));
         };
 
+        if gotchi.health != HyliGotchiHealth::Dead {
+            return Err(format!(
+                "Gotchi {} is not dead and cannot be resurrected",
+                gotchi.name
+            ));
+        }
+
         gotchi.resurrect(block_height);
 
         Ok(format!("Gotchi {} has been resurrected", gotchi.name))
@@ -303,6 +306,13 @@ impl HyliGotchiWorld {
         let Some(gotchi) = self.people.get_mut(user) else {
             return Err(format!("No gotchi found for user {user}"));
         };
+
+        if gotchi.health == HyliGotchiHealth::Dead {
+            return Err(format!(
+                "Gotchi {} is dead and cannot be cleaned",
+                gotchi.name
+            ));
+        }
 
         if !gotchi.pooped {
             return Err(format!("Gotchi {} has no poop to clean", gotchi.name));
@@ -324,6 +334,13 @@ impl HyliGotchiWorld {
         let Some(gotchi) = self.people.get_mut(user) else {
             return Err(format!("No gotchi found for user {user}"));
         };
+
+        if gotchi.health == HyliGotchiHealth::Dead {
+            return Err(format!(
+                "Gotchi {} is dead and cannot be fed vitamins",
+                gotchi.name
+            ));
+        }
 
         gotchi.vitamins = gotchi
             .vitamins
@@ -349,6 +366,13 @@ impl HyliGotchiWorld {
             return Err(format!("No gotchi found for user {user}"));
         };
 
+        if gotchi.health == HyliGotchiHealth::Dead {
+            return Err(format!(
+                "Gotchi {} is dead and cannot be fed sweets",
+                gotchi.name
+            ));
+        }
+
         gotchi.sweets = gotchi.sweets.saturating_add(sweets_amount).min(MAX_SWEETS);
         gotchi.last_sweets_at = block_height;
 
@@ -369,6 +393,13 @@ impl HyliGotchiWorld {
         let Some(gotchi) = self.people.get_mut(user) else {
             return Err(format!("No gotchi found for user {user}"));
         };
+
+        if gotchi.health == HyliGotchiHealth::Dead {
+            return Err(format!(
+                "Gotchi {} is dead and cannot be fed food",
+                gotchi.name
+            ));
+        }
 
         gotchi.food = gotchi.food.saturating_add(food_amount).min(MAX_FOOD);
         gotchi.last_food_block_height = block_height;
@@ -444,17 +475,11 @@ impl HyliGotchiWorld {
                 gotchi.last_sweets_at = block_height;
             }
 
-            if gotchi.last_vitamins_at + 1 < block_height {
-                // time to decrease vitamins points
-                let vitamins_decrease = rng.random_range(0..=1);
-                gotchi.vitamins = gotchi.vitamins.saturating_sub(vitamins_decrease);
-                gotchi.last_vitamins_at = block_height;
-            }
-
             if gotchi.vitamins == MAX_VITAMINS && matches!(gotchi.health, HyliGotchiHealth::Sick(_))
             {
                 // If the gotchi has full vitamins, it recovers from sickness
                 gotchi.health = HyliGotchiHealth::Healthy;
+                gotchi.vitamins = 0;
             }
 
             if !gotchi.pooped && rng.random_range(0..=10) == 0 {
