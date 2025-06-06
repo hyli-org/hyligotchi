@@ -114,8 +114,8 @@ impl HyliGotchi {
     }
 
     pub fn random_sick(&mut self, rng: &mut impl Rng, block_height: u64) {
-        if matches!(self.health, HyliGotchiHealth::Healthy) && self.food < MAX_FOOD / 2
-            || self.sweets < MAX_SWEETS / 2
+        if matches!(self.health, HyliGotchiHealth::Healthy)
+            && (self.food < MAX_FOOD / 2 || self.sweets < MAX_SWEETS / 2)
         {
             // If the gotchi has less than half of the maximum food, sweets, or vitamins,
             // it becomes sick
@@ -137,7 +137,7 @@ impl HyliGotchi {
     }
     fn resurrect(&mut self, block_height: u64) {
         // Resurrect the gotchi if it has been dead for more than 200 blocks
-        if matches!(self.health, HyliGotchiHealth::Dead) && block_height - self.born_at > 200 {
+        if matches!(self.health, HyliGotchiHealth::Dead) && block_height - self.born_at > 100 {
             self.health = HyliGotchiHealth::Healthy;
             self.born_at = block_height;
             self.pooped = false;
