@@ -10,14 +10,12 @@ use alloc::{
     string::{String, ToString},
 };
 use borsh::{io::Error, BorshDeserialize, BorshSerialize};
-use rand::seq::IteratorRandom;
 use rand::{Rng, SeedableRng};
 use rand_seeder::{SipHasher, SipRng};
-use sdk::hyle_model_utils::TimestampMs;
 use sdk::tracing::info;
 use serde::{Deserialize, Serialize};
 
-use sdk::{BlockHash, ContractName, Identity, RunResult};
+use sdk::{BlockHash, Identity, RunResult};
 
 #[cfg(feature = "client")]
 pub mod client;
@@ -37,18 +35,26 @@ impl sdk::ZkContract for HyliGotchiWorld {
         // Execute the given action
         let res = match action {
             HyliGotchiAction::Init(name) => {
-                self.new_gotchi(user, name, &tx_ctx.block_hash, tx_ctx.timestamp.0)?
+                self.new_gotchi(user, name, &tx_ctx.block_hash, tx_ctx.block_height.0)?
             }
             HyliGotchiAction::FeedFood(food_amount) => {
-                self.feed_food(user, food_amount, &tx_ctx.block_hash)?
+                self.feed_food(user, food_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)?
             }
-            HyliGotchiAction::FeedSweets(sweets_amount) => {
-                self.feed_sweets(user, sweets_amount, &tx_ctx.block_hash)?
+            HyliGotchiAction::FeedSweets(sweets_amount) => self.feed_sweets(
+                user,
+                sweets_amount,
+                tx_ctx.block_height.0,
+                &tx_ctx.block_hash,
+            )?,
+            HyliGotchiAction::FeedVitamins(vitamins_amount) => self.feed_vitamins(
+                user,
+                vitamins_amount,
+                tx_ctx.block_height.0,
+                &tx_ctx.block_hash,
+            )?,
+            HyliGotchiAction::Tick(nonce) => {
+                self.tick(&tx_ctx.block_hash, tx_ctx.block_height.0)?
             }
-            HyliGotchiAction::FeedVitamins(vitamins_amount) => {
-                self.feed_vitamins(user, vitamins_amount, &tx_ctx.block_hash)?
-            }
-            HyliGotchiAction::Tick(nonce) => self.tick(&tx_ctx.block_hash, tx_ctx.timestamp.0)?,
         };
 
         Ok((res.as_bytes().to_vec(), ctx, alloc::vec![]))
@@ -70,26 +76,28 @@ pub struct HyliGotchi {
     pub name: String,
     pub activity: HyliGotchiActivity,
     pub health: HyliGotchiHealth,
+    pub born_at: u64,
     pub food: u64,
-    pub last_food: u128,
+    pub last_food_block_height: u64,
     pub sweets: u64,
-    pub last_sweets: u128,
+    pub last_sweets_at: u64,
     pub vitamins: u64,
-    pub last_vitamins: u128,
+    pub last_vitamins_at: u64,
 }
 
 impl HyliGotchi {
-    pub fn new(name: String, current_timestamp: u128) -> Self {
+    pub fn new(name: String, block_height: u64) -> Self {
         HyliGotchi {
             name,
             activity: HyliGotchiActivity::Idle,
             health: HyliGotchiHealth::Healthy,
+            born_at: block_height,
             food: MAX_FOOD,
-            last_food: current_timestamp,
+            last_food_block_height: block_height,
             sweets: MAX_SWEETS,
-            last_sweets: current_timestamp,
+            last_sweets_at: block_height,
             vitamins: MAX_VITAMINS,
-            last_vitamins: current_timestamp,
+            last_vitamins_at: block_height,
         }
     }
 
@@ -112,10 +120,6 @@ impl HyliGotchi {
                 self.health = HyliGotchiHealth::Healthy;
             }
         }
-    }
-
-    fn is_sick(&self) -> bool {
-        self.health == HyliGotchiHealth::Sick
     }
 }
 
@@ -165,17 +169,18 @@ impl Display for HyliGotchiActivity {
 
 #[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Debug, Clone, Default)]
 pub struct HyliGotchiWorld {
-    pub last_tick: u128,
+    pub last_block_height: u64,
     pub people: BTreeMap<Identity, HyliGotchi>,
 }
 
 impl Display for HyliGotchiWorld {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for (user, gotchi) in &self.people {
-            write!(
+            writeln!(
                 f,
-                "Gotchi: {}, Activity: {}, Health: {}, Food: {}, Sweets: {}, Vitamins: {}\n",
+                "Gotchi: {}, Born at: {}, Activity: {}, Health: {}, Food: {}, Sweets: {}, Vitamins: {}",
                 gotchi.name,
+                gotchi.born_at,
                 gotchi.activity,
                 gotchi.health,
                 gotchi.food,
@@ -187,7 +192,7 @@ impl Display for HyliGotchiWorld {
         write!(
             f,
             "Last tick: {}, Total gotchis: {}",
-            self.last_tick,
+            self.last_block_height,
             self.people.len()
         )
     }
@@ -248,6 +253,7 @@ impl HyliGotchiWorld {
         &mut self,
         user: &Identity,
         vitamins_amount: u64,
+        block_height: u64,
         _block_hash: &sdk::ConsensusProposalHash,
     ) -> Result<String, String> {
         let Some(gotchi) = self.people.get_mut(user) else {
@@ -258,6 +264,7 @@ impl HyliGotchiWorld {
             .vitamins
             .saturating_add(vitamins_amount)
             .min(MAX_VITAMINS);
+        gotchi.last_vitamins_at = block_height;
 
         Ok(format!(
             "Gotchi {} fed {} vitamins. New vitamin level: {}",
@@ -270,6 +277,7 @@ impl HyliGotchiWorld {
         &mut self,
         user: &Identity,
         sweets_amount: u64,
+        block_height: u64,
         _block_hash: &sdk::ConsensusProposalHash,
     ) -> Result<String, String> {
         let Some(gotchi) = self.people.get_mut(user) else {
@@ -277,6 +285,7 @@ impl HyliGotchiWorld {
         };
 
         gotchi.sweets = gotchi.sweets.saturating_add(sweets_amount).min(MAX_SWEETS);
+        gotchi.last_sweets_at = block_height;
 
         Ok(format!(
             "Gotchi {} fed {} sweets. New sweets level: {}",
@@ -289,6 +298,7 @@ impl HyliGotchiWorld {
         &mut self,
         user: &Identity,
         food_amount: u64,
+        block_height: u64,
         _block_hash: &sdk::ConsensusProposalHash,
     ) -> Result<String, String> {
         let Some(gotchi) = self.people.get_mut(user) else {
@@ -296,6 +306,7 @@ impl HyliGotchiWorld {
         };
 
         gotchi.food = gotchi.food.saturating_add(food_amount).min(MAX_FOOD);
+        gotchi.last_food_block_height = block_height;
 
         Ok(format!(
             "Gotchi {} fed {} food. New food level: {}",
@@ -308,16 +319,14 @@ impl HyliGotchiWorld {
         user: &Identity,
         name: String,
         blockhash: &BlockHash,
-        current_timestamp: u128,
+        block_height: u64,
     ) -> Result<String, String> {
         if self.people.contains_key(user) {
             return Err(format!("Gotchi already exists for user {user}"));
         }
 
-        self.people.insert(
-            user.clone(),
-            HyliGotchi::new(name.clone(), current_timestamp),
-        );
+        self.people
+            .insert(user.clone(), HyliGotchi::new(name.clone(), block_height));
 
         Ok(format!(
             "New gotchi created for user {user} with blockhash {blockhash}",
@@ -329,16 +338,16 @@ impl HyliGotchiWorld {
     fn tick(
         &mut self,
         block_hash: &sdk::ConsensusProposalHash,
-        current_timestamp: u128,
+        block_height: u64,
     ) -> Result<String, String> {
         info!(
-            current_timestamp = current_timestamp,
+            current_timestamp = block_height,
             block_hash = %block_hash.0,
-            diff = current_timestamp - self.last_tick,
+            diff = block_height - self.last_block_height,
             "Processing tick"
         );
 
-        if current_timestamp - self.last_tick < 1 * 1000 {
+        if block_height - self.last_block_height < 2 {
             return Err("Tick too soon, please wait".to_string());
         }
 
@@ -356,25 +365,25 @@ impl HyliGotchiWorld {
                 HyliGotchiActivity::Playing
             };
 
-            if gotchi.last_food + 1 * 1000 < current_timestamp {
+            if gotchi.last_food_block_height + 1 < block_height {
                 // time to decrease food points
                 let food_decrease = rng.random_range(0..=1);
                 gotchi.food = gotchi.food.saturating_sub(food_decrease);
-                gotchi.last_food = current_timestamp;
+                gotchi.last_food_block_height = block_height;
             }
 
-            if gotchi.last_sweets + 1 * 1000 < current_timestamp {
+            if gotchi.last_sweets_at + 1 * 1000 < block_height {
                 // time to decrease sweets points
                 let sweets_decrease = rng.random_range(0..=1);
                 gotchi.sweets = gotchi.sweets.saturating_sub(sweets_decrease);
-                gotchi.last_sweets = current_timestamp;
+                gotchi.last_sweets_at = block_height;
             }
 
-            if gotchi.last_vitamins + 1 * 1000 < current_timestamp {
+            if gotchi.last_vitamins_at + 1 * 1000 < block_height {
                 // time to decrease vitamins points
                 let vitamins_decrease = rng.random_range(0..=1);
                 gotchi.vitamins = gotchi.vitamins.saturating_sub(vitamins_decrease);
-                gotchi.last_vitamins = current_timestamp;
+                gotchi.last_vitamins_at = block_height;
             }
 
             if gotchi.vitamins == MAX_VITAMINS && gotchi.health == HyliGotchiHealth::Sick {
@@ -385,11 +394,11 @@ impl HyliGotchiWorld {
             gotchi.random_sick(&mut rng);
         }
 
-        self.last_tick = current_timestamp;
+        self.last_block_height = block_height;
 
         Ok(format!(
             "Tick processed successfully. Block hash: {}, Timestamp: {}, world state updated. {}",
-            block_hash.0, current_timestamp, self
+            block_hash.0, block_height, self
         ))
     }
 }
