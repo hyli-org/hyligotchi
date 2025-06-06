@@ -37,6 +37,7 @@ impl sdk::ZkContract for HyliGotchiWorld {
             HyliGotchiAction::Init(name) => {
                 self.new_gotchi(user, name, &tx_ctx.block_hash, tx_ctx.block_height.0)?
             }
+            HyliGotchiAction::CleanPoop(_nonce) => self.clean_poop(user, &tx_ctx.block_hash)?,
             HyliGotchiAction::FeedFood(food_amount) => {
                 self.feed_food(user, food_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)?
             }
@@ -52,7 +53,7 @@ impl sdk::ZkContract for HyliGotchiWorld {
                 tx_ctx.block_height.0,
                 &tx_ctx.block_hash,
             )?,
-            HyliGotchiAction::Tick(nonce) => {
+            HyliGotchiAction::Tick(_nonce) => {
                 self.tick(&tx_ctx.block_hash, tx_ctx.block_height.0)?
             }
         };
@@ -76,6 +77,7 @@ pub struct HyliGotchi {
     pub name: String,
     pub activity: HyliGotchiActivity,
     pub health: HyliGotchiHealth,
+    pub pooped: bool,
     pub born_at: u64,
     pub food: u64,
     pub last_food_block_height: u64,
@@ -91,6 +93,7 @@ impl HyliGotchi {
             name,
             activity: HyliGotchiActivity::Idle,
             health: HyliGotchiHealth::Healthy,
+            pooped: false,
             born_at: block_height,
             food: MAX_FOOD,
             last_food_block_height: block_height,
@@ -231,6 +234,7 @@ pub enum HyliGotchiAction {
     FeedFood(u64),
     FeedSweets(u64),
     FeedVitamins(u64),
+    CleanPoop(u128),
     Tick(u128),
 }
 
@@ -246,6 +250,24 @@ impl HyliGotchiAction {
 impl HyliGotchiWorld {
     pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
         borsh::to_vec(self)
+    }
+
+    fn clean_poop(
+        &mut self,
+        user: &Identity,
+        _block_hash: &sdk::ConsensusProposalHash,
+    ) -> Result<String, String> {
+        let Some(gotchi) = self.people.get_mut(user) else {
+            return Err(format!("No gotchi found for user {user}"));
+        };
+
+        if !gotchi.pooped {
+            return Err(format!("Gotchi {} has no poop to clean", gotchi.name));
+        }
+
+        gotchi.pooped = false;
+
+        Ok(format!("Gotchi {} cleaned up poop", gotchi.name))
     }
 
     /// Feed vitamins to the gotchi
@@ -372,14 +394,14 @@ impl HyliGotchiWorld {
                 gotchi.last_food_block_height = block_height;
             }
 
-            if gotchi.last_sweets_at + 1 * 1000 < block_height {
+            if gotchi.last_sweets_at + 1 < block_height {
                 // time to decrease sweets points
                 let sweets_decrease = rng.random_range(0..=1);
                 gotchi.sweets = gotchi.sweets.saturating_sub(sweets_decrease);
                 gotchi.last_sweets_at = block_height;
             }
 
-            if gotchi.last_vitamins_at + 1 * 1000 < block_height {
+            if gotchi.last_vitamins_at + 1 < block_height {
                 // time to decrease vitamins points
                 let vitamins_decrease = rng.random_range(0..=1);
                 gotchi.vitamins = gotchi.vitamins.saturating_sub(vitamins_decrease);
@@ -389,6 +411,11 @@ impl HyliGotchiWorld {
             if gotchi.vitamins == MAX_VITAMINS && gotchi.health == HyliGotchiHealth::Sick {
                 // If the gotchi has full vitamins, it recovers from sickness
                 gotchi.health = HyliGotchiHealth::Healthy;
+            }
+
+            if !gotchi.pooped && rng.random_range(0..=10) == 0 {
+                // Randomly decide if the gotchi poops
+                gotchi.pooped = true;
             }
 
             gotchi.random_sick(&mut rng);
