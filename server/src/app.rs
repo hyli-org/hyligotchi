@@ -64,6 +64,7 @@ impl Module for AppModule {
             .route("/api/init", post(init))
             .route("/api/tick", post(tick))
             .route("/api/poop/clean", post(clean_poop))
+            .route("/api/resurrect", post(resurrect))
             .route("/api/feed/food", post(feed_food))
             .route("/api/feed/sweets", post(feed_sweets))
             .route("/api/feed/vitamins", post(feed_vitamins))
@@ -183,6 +184,29 @@ async fn init(
     send(
         ctx,
         HyliGotchiAction::Init(init_with_name.name),
+        auth, /*, wallet_blobs*/
+    )
+    .await
+}
+
+async fn resurrect(
+    State(ctx): State<RouterCtx>,
+    headers: HeaderMap,
+    // Json(wallet_blobs): Json<[Blob; 2]>,
+) -> Result<impl IntoResponse, AppError> {
+    let auth = AuthHeaders::from_headers(&headers)?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| {
+            AppError(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                anyhow::anyhow!("Time error"),
+            )
+        })?
+        .as_millis();
+    send(
+        ctx,
+        HyliGotchiAction::Resurrect(now),
         auth, /*, wallet_blobs*/
     )
     .await

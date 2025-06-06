@@ -56,6 +56,9 @@ impl sdk::ZkContract for HyliGotchiWorld {
             HyliGotchiAction::Tick(_nonce) => {
                 self.tick(&tx_ctx.block_hash, tx_ctx.block_height.0)?
             }
+            HyliGotchiAction::Resurrect(_nonce) => {
+                self.resurrect_gotchi(user, tx_ctx.block_height.0)?
+            }
         };
 
         Ok((res.as_bytes().to_vec(), ctx, alloc::vec![]))
@@ -77,6 +80,7 @@ pub struct HyliGotchi {
     pub name: String,
     pub activity: HyliGotchiActivity,
     pub health: HyliGotchiHealth,
+    pub death_count: u64,
     pub pooped: bool,
     pub born_at: u64,
     pub food: u64,
@@ -93,6 +97,7 @@ impl HyliGotchi {
             name,
             activity: HyliGotchiActivity::Idle,
             health: HyliGotchiHealth::Healthy,
+            death_count: 0,
             pooped: false,
             born_at: block_height,
             food: MAX_FOOD,
@@ -108,7 +113,7 @@ impl HyliGotchi {
         self.food < MAX_FOOD || self.sweets < MAX_SWEETS || self.vitamins < MAX_FOOD
     }
 
-    pub fn random_sick(&mut self, rng: &mut impl Rng) {
+    pub fn random_sick(&mut self, rng: &mut impl Rng, block_height: u64) {
         if self.food < MAX_FOOD / 2
             || self.sweets < MAX_SWEETS / 2
             || self.vitamins < MAX_VITAMINS / 2
@@ -117,11 +122,36 @@ impl HyliGotchi {
             // it becomes sick
             if rng.random_range(0..=1) == 0 {
                 // Randomly decide if the gotchi becomes sick
-                self.health = HyliGotchiHealth::Sick;
+                self.health = HyliGotchiHealth::Sick(block_height);
             } else {
                 // If the gotchi is not hungry, it remains healthy
                 self.health = HyliGotchiHealth::Healthy;
             }
+        }
+    }
+
+    fn random_death(&mut self, rng: &mut SipRng, block_height: u64) {
+        if let HyliGotchiHealth::Sick(since) = self.health {
+            if block_height - since > 100 && rng.random_range(0..=1) == 0 {
+                // If the gotchi has been sick for more than 100 blocks, it has a chance to die
+                self.health = HyliGotchiHealth::Dead;
+                self.death_count += 1;
+            }
+        }
+    }
+    fn resurrect(&mut self, block_height: u64) {
+        // Resurrect the gotchi if it has been dead for more than 200 blocks
+        if matches!(self.health, HyliGotchiHealth::Dead) && block_height - self.born_at > 200 {
+            self.health = HyliGotchiHealth::Healthy;
+            self.born_at = block_height;
+            self.pooped = false;
+            self.food = MAX_FOOD;
+            self.sweets = MAX_SWEETS;
+            self.vitamins = MAX_VITAMINS;
+            self.last_food_block_height = block_height;
+            self.last_sweets_at = block_height;
+            self.last_vitamins_at = block_height;
+            self.activity = HyliGotchiActivity::Idle;
         }
     }
 }
@@ -141,7 +171,8 @@ pub enum HyliGotchiActivity {
 pub enum HyliGotchiHealth {
     #[default]
     Healthy,
-    Sick,
+    Sick(u64), // Block height when the gotchi got sick
+    Dead,
 }
 
 impl Display for HyliGotchiHealth {
@@ -150,8 +181,9 @@ impl Display for HyliGotchiHealth {
             f,
             "{}",
             match self {
-                HyliGotchiHealth::Healthy => "Healthy",
-                HyliGotchiHealth::Sick => "Sick",
+                HyliGotchiHealth::Healthy => "Healthy".to_string(),
+                HyliGotchiHealth::Sick(since) => format!("Sick since block {}", since),
+                HyliGotchiHealth::Dead => "Dead".to_string(),
             },
         )
     }
@@ -236,6 +268,7 @@ pub enum HyliGotchiAction {
     FeedVitamins(u64),
     CleanPoop(u128),
     Tick(u128),
+    Resurrect(u128),
 }
 
 impl HyliGotchiAction {
@@ -250,6 +283,16 @@ impl HyliGotchiAction {
 impl HyliGotchiWorld {
     pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
         borsh::to_vec(self)
+    }
+
+    fn resurrect_gotchi(&mut self, user: &Identity, block_height: u64) -> Result<String, String> {
+        let Some(gotchi) = self.people.get_mut(user) else {
+            return Err(format!("No gotchi found for user {user}"));
+        };
+
+        gotchi.resurrect(block_height);
+
+        Ok(format!("Gotchi {} has been resurrected", gotchi.name))
     }
 
     fn clean_poop(
@@ -408,7 +451,8 @@ impl HyliGotchiWorld {
                 gotchi.last_vitamins_at = block_height;
             }
 
-            if gotchi.vitamins == MAX_VITAMINS && gotchi.health == HyliGotchiHealth::Sick {
+            if gotchi.vitamins == MAX_VITAMINS && matches!(gotchi.health, HyliGotchiHealth::Sick(_))
+            {
                 // If the gotchi has full vitamins, it recovers from sickness
                 gotchi.health = HyliGotchiHealth::Healthy;
             }
@@ -418,7 +462,9 @@ impl HyliGotchiWorld {
                 gotchi.pooped = true;
             }
 
-            gotchi.random_sick(&mut rng);
+            gotchi.random_sick(&mut rng, block_height);
+
+            gotchi.random_death(&mut rng, block_height);
         }
 
         self.last_block_height = block_height;
