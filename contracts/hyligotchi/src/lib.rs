@@ -97,7 +97,7 @@ impl HyliGotchi {
         self.food < MAX_FOOD || self.sweets < MAX_SWEETS || self.vitamins < MAX_FOOD
     }
 
-    pub fn become_sick(&mut self, rng: &mut impl Rng) {
+    pub fn random_sick(&mut self, rng: &mut impl Rng) {
         if self.food < MAX_FOOD / 2
             || self.sweets < MAX_SWEETS / 2
             || self.vitamins < MAX_VITAMINS / 2
@@ -338,7 +338,7 @@ impl HyliGotchiWorld {
             "Processing tick"
         );
 
-        if current_timestamp - self.last_tick < 10 * 1000 {
+        if current_timestamp - self.last_tick < 1 * 1000 {
             return Err("Tick too soon, please wait".to_string());
         }
 
@@ -350,27 +350,27 @@ impl HyliGotchiWorld {
 
         for (user, gotchi) in self.people.iter_mut() {
             // Simulate some random activity
-            let activity: HyliGotchiActivity = if rng.random_range(0..=1) == 0 {
+            gotchi.activity = if rng.random_range(0..=1) == 0 {
                 HyliGotchiActivity::Idle
             } else {
                 HyliGotchiActivity::Playing
             };
 
-            if gotchi.last_food + 600 * 1000 < current_timestamp {
+            if gotchi.last_food + 1 * 1000 < current_timestamp {
                 // time to decrease food points
                 let food_decrease = rng.random_range(0..=1);
                 gotchi.food = gotchi.food.saturating_sub(food_decrease);
                 gotchi.last_food = current_timestamp;
             }
 
-            if gotchi.last_sweets + 600 * 1000 < current_timestamp {
+            if gotchi.last_sweets + 1 * 1000 < current_timestamp {
                 // time to decrease sweets points
                 let sweets_decrease = rng.random_range(0..=1);
                 gotchi.sweets = gotchi.sweets.saturating_sub(sweets_decrease);
                 gotchi.last_sweets = current_timestamp;
             }
 
-            if gotchi.last_vitamins + 600 * 1000 < current_timestamp {
+            if gotchi.last_vitamins + 1 * 1000 < current_timestamp {
                 // time to decrease vitamins points
                 let vitamins_decrease = rng.random_range(0..=1);
                 gotchi.vitamins = gotchi.vitamins.saturating_sub(vitamins_decrease);
@@ -382,10 +382,7 @@ impl HyliGotchiWorld {
                 gotchi.health = HyliGotchiHealth::Healthy;
             }
 
-            if gotchi.is_sick() {
-                // If the gotchi is hungry, it may become sick
-                gotchi.become_sick(&mut rng);
-            }
+            gotchi.random_sick(&mut rng);
         }
 
         self.last_tick = current_timestamp;

@@ -4,7 +4,12 @@ use alloc::{
 };
 use anyhow::{anyhow, Context, Result};
 use client_sdk::contract_indexer::{
-    axum::{extract::State, http::StatusCode, response::IntoResponse, Json, Router},
+    axum::{
+        extract::State,
+        http::{HeaderMap, StatusCode},
+        response::IntoResponse,
+        Json, Router,
+    },
     utoipa::openapi::OpenApi,
     utoipa_axum::{router::OpenApiRouter, routes},
     AppError, ContractHandler, ContractHandlerStore,
@@ -54,6 +59,30 @@ impl ContractHandler for HyliGotchiWorld {
     }
 }
 
+const IDENTITY_HEADER: &str = "x-identity";
+
+#[derive(Debug)]
+struct AuthHeaders {
+    identity: String,
+}
+
+impl AuthHeaders {
+    fn from_headers(headers: &HeaderMap) -> Result<Self, AppError> {
+        let identity = headers
+            .get(IDENTITY_HEADER)
+            .and_then(|v| v.to_str().ok())
+            .ok_or_else(|| {
+                AppError(
+                    StatusCode::UNAUTHORIZED,
+                    anyhow::anyhow!("Missing identity"),
+                )
+            })?
+            .to_string();
+
+        Ok(AuthHeaders { identity })
+    }
+}
+
 #[utoipa::path(
     get,
     path = "/state",
@@ -62,12 +91,19 @@ impl ContractHandler for HyliGotchiWorld {
         (status = OK, description = "Get json state of contract")
     )
 )]
-pub async fn get_state<S: Serialize + Clone + 'static>(
-    State(state): State<ContractHandlerStore<S>>,
+pub async fn get_state(
+    State(state): State<ContractHandlerStore<HyliGotchiWorld>>,
+    headers: HeaderMap,
 ) -> Result<impl IntoResponse, AppError> {
+    let auth_headers = AuthHeaders::from_headers(&headers)?;
     let store = state.read().await;
-    store.state.clone().map(Json).ok_or(AppError(
-        StatusCode::NOT_FOUND,
-        anyhow!("No state found for contract '{}'", store.contract_name),
-    ))
+    store
+        .state
+        .clone()
+        .and_then(|s| s.people.get(&Identity(auth_headers.identity)).cloned())
+        .map(Json)
+        .ok_or(AppError(
+            StatusCode::NOT_FOUND,
+            anyhow!("No state found for contract '{}'", store.contract_name),
+        ))
 }
