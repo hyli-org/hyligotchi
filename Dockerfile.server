@@ -1,4 +1,4 @@
-FROM rust:latest AS builder
+FROM rust:1.85 AS builder
 
 RUN curl -L https://sp1up.succinct.xyz | bash
 RUN /root/.sp1/bin/sp1up 
@@ -13,7 +13,7 @@ COPY Cargo.lock .
 RUN cargo build --bin server --release
 
 # RUNNER
-FROM rust:latest
+FROM rust:1.85
 
 WORKDIR /app
 
