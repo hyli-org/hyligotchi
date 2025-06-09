@@ -4,7 +4,6 @@ RUN curl -L https://sp1up.succinct.xyz | bash
 RUN /root/.sp1/bin/sp1up 
 
 WORKDIR /app
-COPY .cargo .cargo
 COPY ./contracts/ ./contracts
 COPY ./server ./server
 COPY ./elf ./elf
