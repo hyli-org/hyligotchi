@@ -61,5 +61,8 @@
     "url": "https://github.com/your-username/hyligotchi.git"
   },
   "license": "MIT",
-  "description": "A React library for creating interactive Tamagotchi-style digital pets with customizable features and orange-themed gameplay."
+  "description": "A React library for creating interactive Tamagotchi-style digital pets with customizable features and orange-themed gameplay.",
+  "dependencies": {
+    "ajv": "8"
+  }
 }

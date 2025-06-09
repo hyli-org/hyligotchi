@@ -163,7 +163,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       updateBornAt(apiGotchi);
       
       // Update balances
-      await refreshBalances();
+      //await refreshBalances();
       
       setActionWithTimeout('Cleaned poo!');
       
