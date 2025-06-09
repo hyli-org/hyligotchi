@@ -204,7 +204,7 @@ class HyligotchiAPIClient {
       throw new Error('Failed to create identity blobs. Please ensure you have an active session key.');
     }
     
-    return this.fetchWithAuth('/api/clean', {
+    return this.fetchWithAuth('/api/poop/clean', {
       method: 'POST',
       body: JSON.stringify(blobs),
     });
