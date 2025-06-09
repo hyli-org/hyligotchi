@@ -17,7 +17,7 @@ use hyle_modules::{
     modules::{prover::AutoProverEvent, BuildApiContextInner, Module},
 };
 use hyligotchi::{HyliGotchi, HyliGotchiAction, HyliGotchiWorld};
-use sdk::{BlobTransaction, ContractName, Identity};
+use sdk::{Blob, BlobTransaction, ContractName, Identity};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tower_http::cors::{Any, CorsLayer};
@@ -178,13 +178,14 @@ async fn init(
     State(ctx): State<RouterCtx>,
     headers: HeaderMap,
     Query(init_with_name): Query<InitWithName>,
-    // Json(wallet_blobs): Json<[Blob; 2]>,
+    Json(wallet_blobs): Json<[Blob; 2]>,
 ) -> Result<impl IntoResponse, AppError> {
     let auth = AuthHeaders::from_headers(&headers)?;
     send(
         ctx,
         HyliGotchiAction::Init(init_with_name.name),
-        auth, /*, wallet_blobs*/
+        auth,
+        wallet_blobs,
     )
     .await
 }
@@ -192,7 +193,7 @@ async fn init(
 async fn resurrect(
     State(ctx): State<RouterCtx>,
     headers: HeaderMap,
-    // Json(wallet_blobs): Json<[Blob; 2]>,
+    Json(wallet_blobs): Json<[Blob; 2]>,
 ) -> Result<impl IntoResponse, AppError> {
     let auth = AuthHeaders::from_headers(&headers)?;
     let now = std::time::SystemTime::now()
@@ -207,7 +208,8 @@ async fn resurrect(
     send(
         ctx,
         HyliGotchiAction::Resurrect(now),
-        auth, /*, wallet_blobs*/
+        auth,
+        wallet_blobs,
     )
     .await
 }
@@ -215,7 +217,7 @@ async fn resurrect(
 async fn clean_poop(
     State(ctx): State<RouterCtx>,
     headers: HeaderMap,
-    // Json(wallet_blobs): Json<[Blob; 2]>,
+    Json(wallet_blobs): Json<[Blob; 2]>,
 ) -> Result<impl IntoResponse, AppError> {
     let auth = AuthHeaders::from_headers(&headers)?;
     let now = std::time::SystemTime::now()
@@ -231,7 +233,8 @@ async fn clean_poop(
     send(
         ctx,
         HyliGotchiAction::CleanPoop(now),
-        auth, /*, wallet_blobs*/
+        auth,
+        wallet_blobs,
     )
     .await
 }
@@ -239,7 +242,7 @@ async fn clean_poop(
 async fn tick(
     State(ctx): State<RouterCtx>,
     headers: HeaderMap,
-    // Json(wallet_blobs): Json<[Blob; 2]>,
+    Json(wallet_blobs): Json<[Blob; 2]>,
 ) -> Result<impl IntoResponse, AppError> {
     let auth = AuthHeaders::from_headers(&headers)?;
     let now = std::time::SystemTime::now()
@@ -255,7 +258,8 @@ async fn tick(
     send(
         ctx,
         HyliGotchiAction::Tick(now),
-        auth, /*, wallet_blobs*/
+        auth,
+        wallet_blobs,
     )
     .await
 }
@@ -269,13 +273,14 @@ async fn feed_food(
     State(ctx): State<RouterCtx>,
     headers: HeaderMap,
     Query(feed_amount): Query<FeedAmount>,
-    // Json(wallet_blobs): Json<[Blob; 2]>,
+    Json(wallet_blobs): Json<[Blob; 2]>,
 ) -> Result<impl IntoResponse, AppError> {
     let auth = AuthHeaders::from_headers(&headers)?;
     send(
         ctx,
         HyliGotchiAction::FeedFood(feed_amount.amount),
-        auth, /*, wallet_blobs*/
+        auth,
+        wallet_blobs,
     )
     .await
 }
@@ -284,13 +289,14 @@ async fn feed_sweets(
     State(ctx): State<RouterCtx>,
     headers: HeaderMap,
     Query(feed_amount): Query<FeedAmount>,
-    // Json(wallet_blobs): Json<[Blob; 2]>,
+    Json(wallet_blobs): Json<[Blob; 2]>,
 ) -> Result<impl IntoResponse, AppError> {
     let auth = AuthHeaders::from_headers(&headers)?;
     send(
         ctx,
         HyliGotchiAction::FeedSweets(feed_amount.amount),
-        auth, /*, wallet_blobs*/
+        auth,
+        wallet_blobs,
     )
     .await
 }
@@ -299,13 +305,14 @@ async fn feed_vitamins(
     State(ctx): State<RouterCtx>,
     headers: HeaderMap,
     Query(feed_amount): Query<FeedAmount>,
-    // Json(wallet_blobs): Json<[Blob; 2]>,
+    Json(wallet_blobs): Json<[Blob; 2]>,
 ) -> Result<impl IntoResponse, AppError> {
     let auth = AuthHeaders::from_headers(&headers)?;
     send(
         ctx,
         HyliGotchiAction::FeedVitamins(feed_amount.amount),
-        auth, /*, wallet_blobs*/
+        auth,
+        wallet_blobs,
     )
     .await
 }
@@ -320,12 +327,11 @@ async fn send(
     ctx: RouterCtx,
     action: HyliGotchiAction,
     auth: AuthHeaders,
-    // wallet_blobs: [Blob; 2],
+    wallet_blobs: [Blob; 2],
 ) -> Result<impl IntoResponse, AppError> {
     let identity = Identity(auth.identity);
 
-    // let mut blobs = wallet_blobs.into_iter().collect::<Vec<_>>();
-    let mut blobs = vec![];
+    let mut blobs = wallet_blobs.into_iter().collect::<Vec<_>>();
     blobs.push(action.as_blob(ctx.hyligotchi_cn.clone()));
 
     let tx_hash = ctx
