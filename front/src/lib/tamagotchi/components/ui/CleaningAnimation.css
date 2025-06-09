@@ -1,0 +1,127 @@
+/* Retro Tamagotchi-style cleaning animation */
+
+.cleaning-sparkle {
+  opacity: 0;
+  animation-duration: 0.8s;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+
+.cleaning-sparkle-0 {
+  animation-name: sparkle-0;
+}
+
+.cleaning-sparkle-1 {
+  animation-name: sparkle-1;
+}
+
+.cleaning-sparkle-2 {
+  animation-name: sparkle-2;
+}
+
+.cleaning-sparkle-3 {
+  animation-name: sparkle-3;
+}
+
+.cleaning-burst {
+  opacity: 0;
+  animation: cleanBurst 0.6s ease-out forwards;
+}
+
+.cleaning-sweep {
+  opacity: 0;
+  animation: sweep 0.4s ease-out forwards;
+}
+
+/* Sparkle animations with different timings */
+@keyframes sparkle-0 {
+  0% { 
+    opacity: 0; 
+    transform: scale(0) rotate(0deg); 
+  }
+  50% { 
+    opacity: 1; 
+    transform: scale(1.2) rotate(180deg); 
+  }
+  100% { 
+    opacity: 0; 
+    transform: scale(0) rotate(360deg); 
+  }
+}
+
+@keyframes sparkle-1 {
+  0% { 
+    opacity: 0; 
+    transform: scale(0) rotate(0deg); 
+  }
+  60% { 
+    opacity: 1; 
+    transform: scale(1.5) rotate(270deg); 
+  }
+  100% { 
+    opacity: 0; 
+    transform: scale(0) rotate(540deg); 
+  }
+}
+
+@keyframes sparkle-2 {
+  0% { 
+    opacity: 0; 
+    transform: scale(0) rotate(0deg); 
+  }
+  40% { 
+    opacity: 1; 
+    transform: scale(1) rotate(90deg); 
+  }
+  100% { 
+    opacity: 0; 
+    transform: scale(0) rotate(180deg); 
+  }
+}
+
+@keyframes sparkle-3 {
+  0% { 
+    opacity: 0; 
+    transform: scale(0) rotate(0deg); 
+  }
+  70% { 
+    opacity: 1; 
+    transform: scale(1.3) rotate(360deg); 
+  }
+  100% { 
+    opacity: 0; 
+    transform: scale(0) rotate(720deg); 
+  }
+}
+
+/* Central burst animation */
+@keyframes cleanBurst {
+  0% { 
+    opacity: 0; 
+    transform: translate(-50%, -50%) scale(0); 
+  }
+  30% { 
+    opacity: 1; 
+    transform: translate(-50%, -50%) scale(1.2); 
+  }
+  100% { 
+    opacity: 0; 
+    transform: translate(-50%, -50%) scale(2); 
+  }
+}
+
+/* Sweep line animation */
+@keyframes sweep {
+  0% { 
+    opacity: 0; 
+    transform: translateX(-100%); 
+  }
+  50% { 
+    opacity: 1; 
+    transform: translateX(0%); 
+  }
+  100% { 
+    opacity: 0; 
+    transform: translateX(100%); 
+  }
+} 
