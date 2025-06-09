@@ -28,7 +28,6 @@ jobs:
       matrix:
         suffix:
           - server
-          - ui
 
     steps:
       - name: Checkout
