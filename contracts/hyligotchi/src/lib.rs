@@ -5,68 +5,199 @@ use std::fmt::Display;
 
 use alloc::vec::Vec;
 use alloc::{
-    collections::btree_map::BTreeMap,
     format,
     string::{String, ToString},
 };
 use borsh::{io::Error, BorshDeserialize, BorshSerialize};
 use rand::{Rng, SeedableRng};
 use rand_seeder::{SipHasher, SipRng};
+use sdk::merkle_utils::{BorshableMerkleProof, SHA256Hasher};
+use sdk::secp256k1::CheckSecp256k1;
 use sdk::tracing::info;
+use sdk::{BlobIndex, BlockHash, ConsensusProposalHash, Identity, RunResult, StateCommitment};
 use serde::{Deserialize, Serialize};
-
-use sdk::{BlockHash, Identity, RunResult};
+use sha2::{Digest, Sha256};
+use sparse_merkle_tree::traits::Value;
+use sparse_merkle_tree::H256;
 
 #[cfg(feature = "client")]
 pub mod client;
+pub mod smt;
 
-impl sdk::ZkContract for HyliGotchiWorld {
+pub type BackendPubKey = [u8; 33];
+pub const DEFAULT_BACKEND_PUBLIC_KEY: BackendPubKey = [
+    2, 82, 222, 37, 58, 251, 184, 56, 112, 182, 255, 255, 252, 221, 235, 53, 107, 2, 98, 178, 4,
+    234, 13, 218, 118, 136, 8, 202, 95, 190, 184, 177, 226,
+];
+
+/// Partial state of the HyliGotchiWorld contract, for proof generation and verification
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+pub struct HyliGotchiWorldZkView {
+    pub commitment: sdk::StateCommitment,
+    pub tick_data: Option<(sdk::StateCommitment, ConsensusProposalHash, u64)>,
+    pub backend_pubkey: BackendPubKey,
+    pub partial_data: Vec<PartialHyliGotchiWorldData>,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
+pub struct PartialHyliGotchiWorldData {
+    pub proof: BorshableMerkleProof,
+    pub gotchi: HyliGotchi,
+}
+
+fn get_state_commitment(root: H256, pubkey: BackendPubKey) -> StateCommitment {
+    let mut hasher = Sha256::new();
+    hasher.update(root.as_slice());
+    hasher.update(pubkey);
+    let result = hasher.finalize();
+    StateCommitment(result.to_vec())
+}
+
+impl sdk::ZkContract for HyliGotchiWorldZkView {
     /// Entry point of the contract's logic
     fn execute(&mut self, calldata: &sdk::Calldata) -> RunResult {
         // Parse contract inputs
         let (action, ctx) = sdk::utils::parse_raw_calldata::<HyliGotchiAction>(calldata)?;
 
-        let user = &calldata.identity;
-
         let Some(tx_ctx) = calldata.tx_ctx.as_ref() else {
             return Err("Missing tx context necessary for this contract".to_string());
         };
 
+        // Special case tick
+        if let HyliGotchiAction::Tick(nonce) = action {
+            // This is a trusted action, just update the commitment.
+            check_tick_commitment(calldata, nonce, &self.backend_pubkey)?;
+            let Some(tick_data) = &self.tick_data else {
+                return Err("Tick data must be set for tick action".to_string());
+            };
+            self.commitment = tick_data.0.clone();
+            return Ok(("Tick".as_bytes().to_vec(), ctx, alloc::vec![]));
+        }
+
+        // Not an identity contract.
+        if calldata.identity.0.ends_with(ctx.contract_name.0.as_str()) {
+            return Err("This contract does not support identity actions".to_string());
+        }
+
+        // If we don't have state for this calldata, then the proof cannot be generated and we must panic.
+        let PartialHyliGotchiWorldData { proof, mut gotchi } = self
+            .partial_data
+            .pop()
+            .expect("No partial data available for the contract state");
+
+        let user = &calldata.identity;
+        let account_key = HyliGotchi::compute_key(user);
+        let leaves = vec![(account_key, gotchi.to_h256())];
+
+        // Validate internal consistency, then check hash.
+        let root = proof
+            .0
+            .clone()
+            .compute_root::<SHA256Hasher>(leaves.clone())
+            .expect("Failed to compute root from proof");
+        let verified = proof
+            .0
+            .clone()
+            .verify::<SHA256Hasher>(&root, leaves.clone())
+            .map_err(|e| format!("Failed to verify proof: {}", e))?;
+        if self.commitment != get_state_commitment(root, self.backend_pubkey) {
+            panic!(
+                "State commitment mismatch: expected {:?}, got {:?}",
+                self.commitment,
+                get_state_commitment(root, self.backend_pubkey)
+            );
+        }
+
+        if !verified {
+            // Proof is invalid and we must panic.
+            panic!("Proof verification failed for the contract state");
+        }
+
         // Execute the given action
-        let res = match action {
-            HyliGotchiAction::Init(name) => {
-                self.new_gotchi(user, name, &tx_ctx.block_hash, tx_ctx.block_height.0)?
-            }
-            HyliGotchiAction::CleanPoop(_nonce) => self.clean_poop(user, &tx_ctx.block_hash)?,
-            HyliGotchiAction::FeedFood(food_amount) => {
-                self.feed_food(user, food_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)?
-            }
-            HyliGotchiAction::FeedSweets(sweets_amount) => self.feed_sweets(
-                user,
-                sweets_amount,
-                tx_ctx.block_height.0,
-                &tx_ctx.block_hash,
-            )?,
-            HyliGotchiAction::FeedVitamins(vitamins_amount) => self.feed_vitamins(
-                user,
-                vitamins_amount,
-                tx_ctx.block_height.0,
-                &tx_ctx.block_hash,
-            )?,
-            HyliGotchiAction::Tick(_nonce) => {
-                self.tick(&tx_ctx.block_hash, tx_ctx.block_height.0)?
-            }
-            HyliGotchiAction::Resurrect(_nonce) => {
-                self.resurrect_gotchi(user, tx_ctx.block_height.0)?
-            }
-        };
+        let res = handle_nontick_action(&mut gotchi, user, action, tx_ctx)?;
+
+        // Now update the commitment
+        let leaves = vec![(account_key, gotchi.to_h256())];
+        let new_root = proof
+            .0
+            .compute_root::<SHA256Hasher>(leaves)
+            .expect("Failed to compute new root");
+
+        self.commitment = get_state_commitment(new_root, self.backend_pubkey);
 
         Ok((res.as_bytes().to_vec(), ctx, alloc::vec![]))
     }
 
     /// In this example, we serialize the full state on-chain.
     fn commit(&self) -> sdk::StateCommitment {
-        sdk::StateCommitment(self.as_bytes().expect("Failed to encode Balances"))
+        self.commitment.clone()
+    }
+}
+
+pub fn handle_nontick_action(
+    gotchi: &mut HyliGotchi,
+    user: &Identity,
+    action: HyliGotchiAction,
+    tx_ctx: &sdk::TxContext,
+) -> Result<String, String> {
+    match action {
+        HyliGotchiAction::Init(ident, name) => {
+            if ident != *user {
+                return Err("You can only initialize your own gotchi".to_string());
+            }
+            if !gotchi.name.is_empty() {
+                return Err(format!("Gotchi already exists for user {}", ident.0));
+            }
+            gotchi.new_gotchi(name, &tx_ctx.block_hash, tx_ctx.block_height.0)
+        }
+        HyliGotchiAction::CleanPoop(ident, _nonce) => {
+            if ident != *user {
+                return Err("You can only initialize your own gotchi".to_string());
+            }
+            if gotchi.name.is_empty() {
+                return Err(format!("Gotchi does not exist for user {}", ident.0));
+            }
+            gotchi.clean_poop(&tx_ctx.block_hash)
+        }
+        HyliGotchiAction::FeedFood(ident, food_amount) => {
+            if ident != *user {
+                return Err("You can only initialize your own gotchi".to_string());
+            }
+            if gotchi.name.is_empty() {
+                return Err(format!("Gotchi does not exist for user {}", ident.0));
+            }
+            gotchi.feed_food(food_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)
+        }
+        HyliGotchiAction::FeedSweets(ident, sweets_amount) => {
+            if ident != *user {
+                return Err("You can only initialize your own gotchi".to_string());
+            }
+            if gotchi.name.is_empty() {
+                return Err(format!("Gotchi does not exist for user {}", ident.0));
+            }
+            gotchi.feed_sweets(sweets_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)
+        }
+        HyliGotchiAction::FeedVitamins(ident, vitamins_amount) => {
+            if ident != *user {
+                return Err("You can only initialize your own gotchi".to_string());
+            }
+            if gotchi.name.is_empty() {
+                return Err(format!("Gotchi does not exist for user {}", ident.0));
+            }
+            gotchi.feed_vitamins(vitamins_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)
+        }
+        HyliGotchiAction::Tick(..) => {
+            Err("Tick action is not supported in this context".to_string())
+        }
+        HyliGotchiAction::Resurrect(ident, _nonce) => {
+            if ident != *user {
+                return Err("You can only resurrect your own gotchi".to_string());
+            }
+            if gotchi.name.is_empty() {
+                return Err(format!("Gotchi does not exist for user {}", ident.0));
+            }
+            gotchi.resurrect_gotchi(tx_ctx.block_height.0)
+        }
     }
 }
 
@@ -198,37 +329,6 @@ impl Display for HyliGotchiActivity {
     }
 }
 
-#[derive(BorshSerialize, BorshDeserialize, Serialize, Deserialize, Debug, Clone, Default)]
-pub struct HyliGotchiWorld {
-    pub last_block_height: u64,
-    pub people: BTreeMap<Identity, HyliGotchi>,
-}
-
-impl Display for HyliGotchiWorld {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (user, gotchi) in &self.people {
-            writeln!(
-                f,
-                "Gotchi: {}, Born at: {}, Activity: {}, Health: {}, Food: {}, Sweets: {}, Vitamins: {}",
-                gotchi.name,
-                gotchi.born_at,
-                gotchi.activity,
-                gotchi.health,
-                gotchi.food,
-                gotchi.sweets,
-                gotchi.vitamins
-            )?;
-        }
-
-        write!(
-            f,
-            "Last tick: {}, Total gotchis: {}",
-            self.last_block_height,
-            self.people.len()
-        )
-    }
-}
-
 /// Enum representing possible events emitted by the contract.
 #[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq)]
 pub enum HyliGotchiEvent {
@@ -258,13 +358,13 @@ pub enum HyliGotchiEvent {
 /// Enum representing possible calls to the contract functions.
 #[derive(Serialize, Deserialize, BorshSerialize, BorshDeserialize, Debug, Clone, PartialEq)]
 pub enum HyliGotchiAction {
-    Init(String),
-    FeedFood(u64),
-    FeedSweets(u64),
-    FeedVitamins(u64),
-    CleanPoop(u128),
+    Init(Identity, String),
+    FeedFood(Identity, u64),
+    FeedSweets(Identity, u64),
+    FeedVitamins(Identity, u64),
+    CleanPoop(Identity, u128),
+    Resurrect(Identity, u128),
     Tick(u128),
-    Resurrect(u128),
 }
 
 impl HyliGotchiAction {
@@ -274,163 +374,162 @@ impl HyliGotchiAction {
             data: sdk::BlobData(borsh::to_vec(self).expect("Failed to encode HyliGotchiAction")),
         }
     }
+    pub fn from_blob_data(blob_data: &sdk::BlobData) -> anyhow::Result<Self> {
+        borsh::from_slice(&blob_data.0).map_err(|e| {
+            anyhow::anyhow!(
+                "Failed to decode WalletAction from blob data: {}",
+                e.to_string()
+            )
+        })
+    }
 }
 
-impl HyliGotchiWorld {
+impl HyliGotchi {
     pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
         borsh::to_vec(self)
     }
 
-    fn resurrect_gotchi(&mut self, user: &Identity, block_height: u64) -> Result<String, String> {
-        let Some(gotchi) = self.people.get_mut(user) else {
-            return Err(format!("No gotchi found for user {user}"));
-        };
-
-        if gotchi.health != HyliGotchiHealth::Dead {
+    fn resurrect_gotchi(&mut self, block_height: u64) -> Result<String, String> {
+        if self.health != HyliGotchiHealth::Dead {
             return Err(format!(
                 "Gotchi {} is not dead and cannot be resurrected",
-                gotchi.name
+                self.name
             ));
         }
 
-        gotchi.resurrect(block_height);
+        self.resurrect(block_height);
 
-        Ok(format!("Gotchi {} has been resurrected", gotchi.name))
+        Ok(format!("Gotchi {} has been resurrected", self.name))
     }
 
-    fn clean_poop(
-        &mut self,
-        user: &Identity,
-        _block_hash: &sdk::ConsensusProposalHash,
-    ) -> Result<String, String> {
-        let Some(gotchi) = self.people.get_mut(user) else {
-            return Err(format!("No gotchi found for user {user}"));
-        };
-
-        if gotchi.health == HyliGotchiHealth::Dead {
+    fn clean_poop(&mut self, _block_hash: &sdk::ConsensusProposalHash) -> Result<String, String> {
+        if self.health == HyliGotchiHealth::Dead {
             return Err(format!(
                 "Gotchi {} is dead and cannot be cleaned",
-                gotchi.name
+                self.name
             ));
         }
 
-        if !gotchi.pooped {
-            return Err(format!("Gotchi {} has no poop to clean", gotchi.name));
+        if !self.pooped {
+            return Err(format!("Gotchi {} has no poop to clean", self.name));
         }
 
-        gotchi.pooped = false;
+        self.pooped = false;
 
-        Ok(format!("Gotchi {} cleaned up poop", gotchi.name))
+        Ok(format!("Gotchi {} cleaned up poop", self.name))
     }
 
     /// Feed vitamins to the gotchi
     fn feed_vitamins(
         &mut self,
-        user: &Identity,
         vitamins_amount: u64,
         block_height: u64,
         _block_hash: &sdk::ConsensusProposalHash,
     ) -> Result<String, String> {
-        let Some(gotchi) = self.people.get_mut(user) else {
-            return Err(format!("No gotchi found for user {user}"));
-        };
-
-        if gotchi.health == HyliGotchiHealth::Dead {
+        if self.health == HyliGotchiHealth::Dead {
             return Err(format!(
                 "Gotchi {} is dead and cannot be fed vitamins",
-                gotchi.name
+                self.name
             ));
         }
 
-        gotchi.vitamins = gotchi
+        self.vitamins = self
             .vitamins
             .saturating_add(vitamins_amount)
             .min(MAX_VITAMINS);
-        gotchi.last_vitamins_at = block_height;
+        self.last_vitamins_at = block_height;
 
         Ok(format!(
             "Gotchi {} fed {} vitamins. New vitamin level: {}",
-            gotchi.name, vitamins_amount, gotchi.vitamins
+            self.name, vitamins_amount, self.vitamins
         ))
     }
 
     /// Feed sweets to the gotchi
     fn feed_sweets(
         &mut self,
-        user: &Identity,
         sweets_amount: u64,
         block_height: u64,
         _block_hash: &sdk::ConsensusProposalHash,
     ) -> Result<String, String> {
-        let Some(gotchi) = self.people.get_mut(user) else {
-            return Err(format!("No gotchi found for user {user}"));
-        };
-
-        if gotchi.health == HyliGotchiHealth::Dead {
+        if self.health == HyliGotchiHealth::Dead {
             return Err(format!(
                 "Gotchi {} is dead and cannot be fed sweets",
-                gotchi.name
+                self.name
             ));
         }
 
-        gotchi.sweets = gotchi.sweets.saturating_add(sweets_amount).min(MAX_SWEETS);
-        gotchi.last_sweets_at = block_height;
+        self.sweets = self.sweets.saturating_add(sweets_amount).min(MAX_SWEETS);
+        self.last_sweets_at = block_height;
 
         Ok(format!(
             "Gotchi {} fed {} sweets. New sweets level: {}",
-            gotchi.name, sweets_amount, gotchi.sweets
+            self.name, sweets_amount, self.sweets
         ))
     }
 
     /// Feed food to the gotchi
     fn feed_food(
         &mut self,
-        user: &Identity,
         food_amount: u64,
         block_height: u64,
         _block_hash: &sdk::ConsensusProposalHash,
     ) -> Result<String, String> {
-        let Some(gotchi) = self.people.get_mut(user) else {
-            return Err(format!("No gotchi found for user {user}"));
-        };
-
-        if gotchi.health == HyliGotchiHealth::Dead {
+        if self.health == HyliGotchiHealth::Dead {
             return Err(format!(
                 "Gotchi {} is dead and cannot be fed food",
-                gotchi.name
+                self.name
             ));
         }
 
-        gotchi.food = gotchi.food.saturating_add(food_amount).min(MAX_FOOD);
-        gotchi.last_food_block_height = block_height;
+        self.food = self.food.saturating_add(food_amount).min(MAX_FOOD);
+        self.last_food_block_height = block_height;
 
         Ok(format!(
             "Gotchi {} fed {} food. New food level: {}",
-            gotchi.name, food_amount, gotchi.food
+            self.name, food_amount, self.food
         ))
     }
 
     fn new_gotchi(
         &mut self,
-        user: &Identity,
         name: String,
         blockhash: &BlockHash,
         block_height: u64,
     ) -> Result<String, String> {
-        if self.people.contains_key(user) {
-            return Err(format!("Gotchi already exists for user {user}"));
+        if !self.name.is_empty() {
+            return Err(format!("Gotchi already exists for user {}", self.name));
         }
 
-        self.people
-            .insert(user.clone(), HyliGotchi::new(name.clone(), block_height));
+        *self = HyliGotchi::new(name.clone(), block_height);
 
         Ok(format!(
-            "New gotchi created for user {user} with blockhash {blockhash}",
-            user = user,
+            "New gotchi {name} created with blockhash {blockhash}",
             blockhash = blockhash.0
         ))
     }
+}
 
+fn check_tick_commitment(
+    calldata: &sdk::Calldata,
+    nonce: u128,
+    backend_pubkey: &BackendPubKey,
+) -> Result<(), String> {
+    let mut data_to_sign = nonce.to_le_bytes().to_vec();
+    data_to_sign.extend_from_slice("HyliGotchiWorldTick".as_bytes());
+    // Check if the calldata contains a secp256k1 blob with the expected data
+    let blob = CheckSecp256k1::new(calldata, &data_to_sign)
+        .with_blob_index(BlobIndex(2))
+        .expect()?;
+    if blob.public_key != *backend_pubkey {
+        return Err("Invalid public key".to_string());
+    }
+    Ok(())
+}
+
+// Permissioned and run only on the handler.
+#[cfg(feature = "client")]
+impl crate::client::HyliGotchiWorld {
     fn tick(
         &mut self,
         block_hash: &sdk::ConsensusProposalHash,
@@ -439,13 +538,12 @@ impl HyliGotchiWorld {
         info!(
             current_timestamp = block_height,
             block_hash = %block_hash.0,
-            diff = block_height - self.last_block_height,
             "Processing tick"
         );
 
-        if block_height - self.last_block_height < 2 {
-            return Err("Tick too soon, please wait".to_string());
-        }
+        //if block_height - self.last_block_height < 2 {
+        //    return Err("Tick too soon, please wait".to_string());
+        //}
 
         let mut hash = SipHasher::new();
         hash.write(block_hash.0.as_ref());
@@ -453,7 +551,20 @@ impl HyliGotchiWorld {
 
         let mut rng = SipRng::seed_from_u64(seed);
 
-        for (user, gotchi) in self.people.iter_mut() {
+        let keys = self
+            .gotchis
+            .0
+            .store()
+            .leaves_map()
+            .iter()
+            .map(|(key, _)| key)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        for key in keys {
+            let Ok(mut gotchi) = self.gotchis.0.get(&key) else {
+                continue;
+            };
             // Simulate some random activity
             gotchi.activity = if rng.random_range(0..=1) == 0 {
                 HyliGotchiActivity::Idle
@@ -490,21 +601,16 @@ impl HyliGotchiWorld {
             gotchi.random_sick(&mut rng, block_height);
 
             gotchi.random_death(&mut rng, block_height);
-        }
 
-        self.last_block_height = block_height;
+            self.gotchis
+                .0
+                .update(key, gotchi)
+                .map_err(|e| format!("Failed to update gotchi: {}", e))?;
+        }
 
         Ok(format!(
             "Tick processed successfully. Block hash: {}, Timestamp: {}, world state updated. {}",
             block_hash.0, block_height, self
         ))
-    }
-}
-
-impl From<sdk::StateCommitment> for HyliGotchiWorld {
-    fn from(state: sdk::StateCommitment) -> Self {
-        borsh::from_slice(&state.0)
-            .map_err(|_| "Could not decode hyllar state".to_string())
-            .unwrap()
     }
 }

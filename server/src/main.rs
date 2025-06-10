@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use app::{AppModule, AppModuleCtx};
 use axum::Router;
 use clap::Parser;
-use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiClient, NodeApiHttpClient};
+use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiHttpClient};
 use conf::Conf;
 use contracts::HYLI_GOTCHI_ELF;
 use hyle_modules::{
@@ -16,13 +16,15 @@ use hyle_modules::{
     },
     utils::logger::setup_tracing,
 };
-use hyligotchi::HyliGotchiWorld;
+use hyligotchi::client::{HyliGotchiWorld, HyliGotchiWorldConstructor};
 use prometheus::Registry;
 use sdk::api::NodeInfo;
-use sdk::ZkContract;
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use sp1_sdk::{Prover, ProverClient};
 use std::sync::Arc;
 use tracing::{error, info, warn};
+
+use crate::app::CryptoContext;
 
 mod app;
 mod conf;
@@ -65,12 +67,25 @@ async fn main() -> Result<()> {
     info!("Building Proving Key");
     let prover = client_sdk::helpers::sp1::SP1Prover::new(pk).await;
 
-    let default_state = HyliGotchiWorld::default();
+    let secp = Secp256k1::new();
+    let secret_key =
+        hex::decode(std::env::var("HYLIGOTCHI_PUBKEY").unwrap_or(
+            "0000000000000001000000000000000100000000000000010000000000000001".to_string(),
+        ))
+        .expect("HYLIGOTCHI_PUBKEY must be a hex string");
+    let secret_key = SecretKey::from_slice(&secret_key).expect("32 bytes, within curve order");
+    let public_key = PublicKey::from_secret_key(&secp, &secret_key);
+
+    let constructor = HyliGotchiWorldConstructor {
+        backend_pubkey: public_key.serialize(),
+    };
+    let world = HyliGotchiWorld::new(&constructor);
 
     let contracts = vec![init::ContractInit {
         name: args.contract_name.clone().into(),
         program_id: prover.program_id().expect("getting program id").0,
-        initial_state: default_state.commit(),
+        initial_state: world.get_state_commitment(),
+        constructor_metadata: Some(borsh::to_vec(&constructor).context("encoding constructor")?),
     }];
 
     match init::init_node(node_client.clone(), indexer_client.clone(), contracts).await {
@@ -97,6 +112,11 @@ async fn main() -> Result<()> {
         node_client,
         indexer_client,
         hyligotchi_cn: args.contract_name.into(),
+        crypto_context: CryptoContext {
+            secp,
+            secret_key,
+            public_key,
+        },
     });
 
     handler.build_module::<AppModule>(app_ctx.clone()).await?;
@@ -115,7 +135,7 @@ async fn main() -> Result<()> {
                 prover: Arc::new(prover),
                 contract_name: app_ctx.hyligotchi_cn.clone(),
                 node: app_ctx.node_client.clone(),
-                default_state: HyliGotchiWorld::default(),
+                default_state: world.clone(),
                 buffer_blocks: config.buffer_blocks,
                 max_txs_per_proof: config.max_txs_per_proof,
             }

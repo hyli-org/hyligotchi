@@ -32,6 +32,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 clap = { version = "4.2", features = ["derive"] }
 utoipa-axum = { version = "0.2.0" }
 utoipa = "5.3.1"
+secp256k1 = { version = "0.31.0" }
 
 opentelemetry = { version = "0.28" }
 prometheus = { version = "0.13.4" }

@@ -11,7 +11,7 @@ test = false
 
 [dependencies]
 anyhow = "1.0.96"
-sdk = { workspace = true, features = ["tracing"] }
+sdk = { workspace = true, features = ["tracing", "smt"] }
 serde = { version = "1.0", default-features = false, features = [
     "derive",
     "alloc",
@@ -23,10 +23,15 @@ sp1-zkvm = { version = "5.0.0", default-features = false, optional = true }
 client-sdk = { workspace = true, default-features = false, features = [
     "sp1",
     "rest",
+    "indexer",
 ], optional = true }
 hyle_hyllar = { workspace = true }
 rand = { version = "0.9.0", default-features = false }
 rand_seeder = { version = "0.4.0", default-features = false }
+
+sparse-merkle-tree = "0.6.1"
+sha2 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", tag = "patch-sha2-0.10.8-sp1-4.0.0" }
+serde_with = "3.12.0"
 
 [dev-dependencies]
 # Active client feature for tests
