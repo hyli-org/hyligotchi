@@ -15,7 +15,7 @@ use client_sdk::contract_indexer::{
     AppError, ContractHandler, ContractHandlerStore,
 };
 use client_sdk::transaction_builder::TxExecutorHandler;
-use sdk::{utils::as_hyle_output, Blob, Calldata, RegisterContractEffect};
+use sdk::{utils::as_hyle_output, Blob, Calldata, ConsensusProposalHash, RegisterContractEffect};
 
 use client_sdk::contract_indexer::axum;
 use client_sdk::contract_indexer::utoipa;
@@ -27,6 +27,7 @@ use crate::{smt::HyliGotchiWorldSMT, *};
 pub struct HyliGotchiWorld {
     // NOT VERIFIED ONCHAIN
     pub last_block_height: u64,
+    pub last_block_hash: ConsensusProposalHash,
 
     #[serde_as(as = "[_; 33]")]
     pub backend_pubkey: BackendPubKey,
@@ -54,35 +55,67 @@ impl TxExecutorHandler for HyliGotchiWorld {
     fn build_commitment_metadata(&self, blob: &Blob) -> anyhow::Result<Vec<u8>> {
         let action: HyliGotchiAction = HyliGotchiAction::from_blob_data(&blob.data)?;
         let zk_view = match action {
-            HyliGotchiAction::UpdateInviteCodePublicKey { .. } => WalletZkView {
-                commitment: get_state_commitment(*self.smt.0.root(), self.invite_code_public_key),
-                invite_code_public_key: self.invite_code_public_key,
-                partial_data: vec![],
-            },
+            HyliGotchiAction::Tick { .. } => {
+                // TODO
+                let mut clone = self.clone();
+                let next_state = clone.tick(&self.last_block_hash, self.last_block_height);
+                let tick_data = match next_state {
+                    Ok(_) => Some((
+                        clone.get_state_commitment(),
+                        self.last_block_hash.clone(),
+                        self.last_block_height,
+                    )),
+                    Err(_) => None,
+                };
+                HyliGotchiWorldZkView {
+                    commitment: self.get_state_commitment(),
+                    backend_pubkey: self.backend_pubkey,
+                    tick_data,
+                    partial_data: vec![],
+                }
+            }
             HyliGotchiAction::Init(ident, ..)
             | HyliGotchiAction::CleanPoop(ident, ..)
             | HyliGotchiAction::FeedFood(ident, ..)
             | HyliGotchiAction::FeedSweets(ident, ..)
             | HyliGotchiAction::FeedVitamins(ident, ..)
             | HyliGotchiAction::Resurrect(ident, ..) => {
-                let mut account_info = self.smt.0.get(&AccountInfo::compute_key(&account))?;
-                account_info.identity = account.clone();
-                WalletZkView {
+                // We unwrap-or-default because if we didn't find it, we still want to prove failure.
+                let gotchi = self.get(&ident).unwrap_or_default();
+                HyliGotchiWorldZkView {
                     commitment: self.get_state_commitment(),
-                    invite_code_public_key: self.invite_code_public_key,
-                    partial_data: vec![PartialWalletData {
+                    backend_pubkey: self.backend_pubkey,
+                    tick_data: None,
+                    partial_data: vec![PartialHyliGotchiWorldData {
                         proof: BorshableMerkleProof(
-                            self.smt
+                            self.gotchis
                                 .0
-                                .merkle_proof(vec![AccountInfo::compute_key(&account)])
+                                .merkle_proof(vec![HyliGotchi::compute_key(&ident)])
                                 .expect("Failed to generate proof"),
                         ),
-                        account_info,
+                        gotchi,
                     }],
                 }
             }
         };
         borsh::to_vec(&zk_view).context("Failed to serialize WalletZkView for commitment metadata")
+    }
+
+    fn merge_commitment_metadata(
+        &self,
+        initial: Vec<u8>,
+        next: Vec<u8>,
+    ) -> anyhow::Result<Vec<u8>, String> {
+        let initial_view: HyliGotchiWorldZkView = borsh::from_slice(&initial)
+            .map_err(|e| format!("Failed to deserialize initial view: {}", e))?;
+        let mut next_view: HyliGotchiWorldZkView = borsh::from_slice(&next)
+            .map_err(|e| format!("Failed to deserialize next view: {}", e))?;
+
+        next_view.partial_data.extend(initial_view.partial_data);
+        next_view.commitment = initial_view.commitment;
+        next_view.tick_data = next_view.tick_data.or(initial_view.tick_data);
+
+        borsh::to_vec(&next_view).map_err(|e| format!("Failed to serialize combined view: {}", e))
     }
 
     fn handle(&mut self, calldata: &Calldata) -> anyhow::Result<sdk::HyleOutput> {
@@ -98,7 +131,11 @@ impl TxExecutorHandler for HyliGotchiWorld {
 
         if let HyliGotchiAction::Tick(nonce) = &action {
             let tick_ok = check_tick_commitment(calldata, *nonce, &self.backend_pubkey)
-                .and(self.tick(&tx_ctx.block_hash, tx_ctx.block_height.0));
+                .and(self.tick(&self.last_block_hash.clone(), self.last_block_height));
+            if tick_ok.is_ok() {
+                self.last_block_hash = tx_ctx.block_hash.clone();
+                self.last_block_height = tx_ctx.block_height.0;
+            }
             return Ok(as_hyle_output(
                 initial_state_commitment,
                 get_state_commitment(*self.gotchis.0.root(), self.backend_pubkey),
@@ -224,6 +261,7 @@ impl HyliGotchiWorld {
     pub fn new(args: &HyliGotchiWorldConstructor) -> Self {
         Self {
             last_block_height: 0,
+            last_block_hash: ConsensusProposalHash::default(),
             backend_pubkey: args.backend_pubkey,
             gotchis: HyliGotchiWorldSMT::default(),
         }

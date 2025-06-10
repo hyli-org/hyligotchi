@@ -295,8 +295,8 @@ async fn tick(
     let blob = create_secp256k1_blob(&ctx.crypto_context, &Identity(auth.identity.clone()), now)
         .map_err(|e| AppError(StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
-    let mut blobs = vec![blob];
-    blobs.extend(wallet_blobs);
+    let mut blobs = wallet_blobs.to_vec();
+    blobs.push(blob);
 
     send(ctx, HyliGotchiAction::Tick(now), auth, blobs).await
 }

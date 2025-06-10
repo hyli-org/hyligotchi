@@ -14,7 +14,7 @@ use rand_seeder::{SipHasher, SipRng};
 use sdk::merkle_utils::{BorshableMerkleProof, SHA256Hasher};
 use sdk::secp256k1::CheckSecp256k1;
 use sdk::tracing::info;
-use sdk::{BlockHash, Identity, RunResult, StateCommitment};
+use sdk::{BlobIndex, BlockHash, ConsensusProposalHash, Identity, RunResult, StateCommitment};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sparse_merkle_tree::traits::Value;
@@ -34,7 +34,7 @@ pub const DEFAULT_BACKEND_PUBLIC_KEY: BackendPubKey = [
 #[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct HyliGotchiWorldZkView {
     pub commitment: sdk::StateCommitment,
-    pub next_commitment: Option<sdk::StateCommitment>,
+    pub tick_data: Option<(sdk::StateCommitment, ConsensusProposalHash, u64)>,
     pub backend_pubkey: BackendPubKey,
     pub partial_data: Vec<PartialHyliGotchiWorldData>,
 }
@@ -67,10 +67,10 @@ impl sdk::ZkContract for HyliGotchiWorldZkView {
         if let HyliGotchiAction::Tick(nonce) = action {
             // This is a trusted action, just update the commitment.
             check_tick_commitment(calldata, nonce, &self.backend_pubkey)?;
-            self.commitment = self
-                .next_commitment
-                .clone()
-                .expect("Next commitment must be set for tick action");
+            let Some(tick_data) = &self.tick_data else {
+                return Err("Tick data must be set for tick action".to_string());
+            };
+            self.commitment = tick_data.0.clone();
             return Ok(("Tick".as_bytes().to_vec(), ctx, alloc::vec![]));
         }
 
@@ -145,11 +145,17 @@ pub fn handle_nontick_action(
             if ident != *user {
                 return Err("You can only initialize your own gotchi".to_string());
             }
+            if !gotchi.name.is_empty() {
+                return Err(format!("Gotchi already exists for user {}", ident.0));
+            }
             gotchi.new_gotchi(name, &tx_ctx.block_hash, tx_ctx.block_height.0)
         }
         HyliGotchiAction::CleanPoop(ident, _nonce) => {
             if ident != *user {
                 return Err("You can only initialize your own gotchi".to_string());
+            }
+            if gotchi.name.is_empty() {
+                return Err(format!("Gotchi does not exist for user {}", ident.0));
             }
             gotchi.clean_poop(&tx_ctx.block_hash)
         }
@@ -157,11 +163,17 @@ pub fn handle_nontick_action(
             if ident != *user {
                 return Err("You can only initialize your own gotchi".to_string());
             }
+            if gotchi.name.is_empty() {
+                return Err(format!("Gotchi does not exist for user {}", ident.0));
+            }
             gotchi.feed_food(food_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)
         }
         HyliGotchiAction::FeedSweets(ident, sweets_amount) => {
             if ident != *user {
                 return Err("You can only initialize your own gotchi".to_string());
+            }
+            if gotchi.name.is_empty() {
+                return Err(format!("Gotchi does not exist for user {}", ident.0));
             }
             gotchi.feed_sweets(sweets_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)
         }
@@ -169,7 +181,9 @@ pub fn handle_nontick_action(
             if ident != *user {
                 return Err("You can only initialize your own gotchi".to_string());
             }
-
+            if gotchi.name.is_empty() {
+                return Err(format!("Gotchi does not exist for user {}", ident.0));
+            }
             gotchi.feed_vitamins(vitamins_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)
         }
         HyliGotchiAction::Tick(..) => {
@@ -178,6 +192,9 @@ pub fn handle_nontick_action(
         HyliGotchiAction::Resurrect(ident, _nonce) => {
             if ident != *user {
                 return Err("You can only resurrect your own gotchi".to_string());
+            }
+            if gotchi.name.is_empty() {
+                return Err(format!("Gotchi does not exist for user {}", ident.0));
             }
             gotchi.resurrect_gotchi(tx_ctx.block_height.0)
         }
@@ -501,7 +518,9 @@ fn check_tick_commitment(
     let mut data_to_sign = nonce.to_le_bytes().to_vec();
     data_to_sign.extend_from_slice("HyliGotchiWorldTick".as_bytes());
     // Check if the calldata contains a secp256k1 blob with the expected data
-    let blob = CheckSecp256k1::new(calldata, &data_to_sign).expect()?;
+    let blob = CheckSecp256k1::new(calldata, &data_to_sign)
+        .with_blob_index(BlobIndex(2))
+        .expect()?;
     if blob.public_key != *backend_pubkey {
         return Err("Invalid public key".to_string());
     }
@@ -519,13 +538,12 @@ impl crate::client::HyliGotchiWorld {
         info!(
             current_timestamp = block_height,
             block_hash = %block_hash.0,
-            diff = block_height - self.last_block_height,
             "Processing tick"
         );
 
-        if block_height - self.last_block_height < 2 {
-            return Err("Tick too soon, please wait".to_string());
-        }
+        //if block_height - self.last_block_height < 2 {
+        //    return Err("Tick too soon, please wait".to_string());
+        //}
 
         let mut hash = SipHasher::new();
         hash.write(block_hash.0.as_ref());
@@ -589,8 +607,6 @@ impl crate::client::HyliGotchiWorld {
                 .update(key, gotchi)
                 .map_err(|e| format!("Failed to update gotchi: {}", e))?;
         }
-
-        self.last_block_height = block_height;
 
         Ok(format!(
             "Tick processed successfully. Block hash: {}, Timestamp: {}, world state updated. {}",
