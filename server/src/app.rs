@@ -16,9 +16,11 @@ use hyle_modules::{
     module_bus_client, module_handle_messages,
     modules::{prover::AutoProverEvent, BuildApiContextInner, Module},
 };
-use hyligotchi::{HyliGotchi, HyliGotchiAction, HyliGotchiWorld};
-use sdk::{Blob, BlobTransaction, ContractName, Identity};
+use hyligotchi::{client::HyliGotchiWorld, HyliGotchi, HyliGotchiAction};
+use sdk::{verifiers::Secp256k1Blob, Blob, BlobTransaction, ContractName, Identity};
+use secp256k1::Message;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
 use tower_http::cors::{Any, CorsLayer};
 
@@ -31,6 +33,7 @@ pub struct AppModuleCtx {
     pub node_client: Arc<NodeApiHttpClient>,
     pub indexer_client: Arc<IndexerApiHttpClient>,
     pub hyligotchi_cn: ContractName,
+    pub crypto_context: CryptoContext,
 }
 
 module_bus_client! {
@@ -51,6 +54,7 @@ impl Module for AppModule {
             })),
             client: ctx.node_client.clone(),
             indexer_client: ctx.indexer_client.clone(),
+            crypto_context: ctx.crypto_context.clone(),
         };
 
         // Créer un middleware CORS
@@ -92,11 +96,19 @@ impl Module for AppModule {
 }
 
 #[derive(Clone)]
+pub struct CryptoContext {
+    pub secp: secp256k1::Secp256k1<secp256k1::All>,
+    pub secret_key: secp256k1::SecretKey,
+    pub public_key: secp256k1::PublicKey,
+}
+
+#[derive(Clone)]
 struct RouterCtx {
     pub app: Arc<Mutex<HyleOofCtx>>,
     pub client: Arc<NodeApiHttpClient>,
     pub indexer_client: Arc<IndexerApiHttpClient>,
     pub hyligotchi_cn: ContractName,
+    pub crypto_context: CryptoContext,
 }
 
 pub struct HyleOofCtx {
@@ -183,9 +195,9 @@ async fn init(
     let auth = AuthHeaders::from_headers(&headers)?;
     send(
         ctx,
-        HyliGotchiAction::Init(init_with_name.name),
+        HyliGotchiAction::Init(Identity(auth.identity.clone()), init_with_name.name),
         auth,
-        wallet_blobs,
+        wallet_blobs.to_vec(),
     )
     .await
 }
@@ -207,9 +219,9 @@ async fn resurrect(
         .as_millis();
     send(
         ctx,
-        HyliGotchiAction::Resurrect(now),
+        HyliGotchiAction::Resurrect(Identity(auth.identity.clone()), now),
         auth,
-        wallet_blobs,
+        wallet_blobs.to_vec(),
     )
     .await
 }
@@ -232,11 +244,36 @@ async fn clean_poop(
 
     send(
         ctx,
-        HyliGotchiAction::CleanPoop(now),
+        HyliGotchiAction::CleanPoop(Identity(auth.identity.clone()), now),
         auth,
-        wallet_blobs,
+        wallet_blobs.to_vec(),
     )
     .await
+}
+
+fn create_secp256k1_blob(
+    crypto: &CryptoContext,
+    identity: &Identity,
+    nonce: u128,
+) -> anyhow::Result<Blob> {
+    // Let's create a secp2561k1 blob signing the data
+    let mut data_to_sign = nonce.to_le_bytes().to_vec();
+    data_to_sign.extend_from_slice("HyliGotchiWorldTick".as_bytes());
+
+    let mut hasher = Sha256::new();
+    hasher.update(data_to_sign.clone());
+    let message_hash: [u8; 32] = hasher.finalize().into();
+    let signature = crypto
+        .secp
+        .sign_ecdsa(Message::from_digest(message_hash), &crypto.secret_key);
+
+    Ok(Secp256k1Blob::new(
+        identity.clone(),
+        &data_to_sign,
+        &crypto.public_key.to_string(),
+        &signature.to_string(),
+    )?
+    .as_blob())
 }
 
 async fn tick(
@@ -255,13 +292,13 @@ async fn tick(
         })?
         .as_millis();
 
-    send(
-        ctx,
-        HyliGotchiAction::Tick(now),
-        auth,
-        wallet_blobs,
-    )
-    .await
+    let blob = create_secp256k1_blob(&ctx.crypto_context, &Identity(auth.identity.clone()), now)
+        .map_err(|e| AppError(StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    let mut blobs = vec![blob];
+    blobs.extend(wallet_blobs);
+
+    send(ctx, HyliGotchiAction::Tick(now), auth, blobs).await
 }
 
 #[derive(Deserialize)]
@@ -278,9 +315,9 @@ async fn feed_food(
     let auth = AuthHeaders::from_headers(&headers)?;
     send(
         ctx,
-        HyliGotchiAction::FeedFood(feed_amount.amount),
+        HyliGotchiAction::FeedFood(Identity(auth.identity.clone()), feed_amount.amount),
         auth,
-        wallet_blobs,
+        wallet_blobs.to_vec(),
     )
     .await
 }
@@ -294,9 +331,9 @@ async fn feed_sweets(
     let auth = AuthHeaders::from_headers(&headers)?;
     send(
         ctx,
-        HyliGotchiAction::FeedSweets(feed_amount.amount),
+        HyliGotchiAction::FeedSweets(Identity(auth.identity.clone()), feed_amount.amount),
         auth,
-        wallet_blobs,
+        wallet_blobs.to_vec(),
     )
     .await
 }
@@ -310,9 +347,9 @@ async fn feed_vitamins(
     let auth = AuthHeaders::from_headers(&headers)?;
     send(
         ctx,
-        HyliGotchiAction::FeedVitamins(feed_amount.amount),
+        HyliGotchiAction::FeedVitamins(Identity(auth.identity.clone()), feed_amount.amount),
         auth,
-        wallet_blobs,
+        wallet_blobs.to_vec(),
     )
     .await
 }
@@ -327,11 +364,10 @@ async fn send(
     ctx: RouterCtx,
     action: HyliGotchiAction,
     auth: AuthHeaders,
-    wallet_blobs: [Blob; 2],
+    mut blobs: Vec<Blob>,
 ) -> Result<impl IntoResponse, AppError> {
     let identity = Identity(auth.identity);
 
-    let mut blobs = wallet_blobs.into_iter().collect::<Vec<_>>();
     blobs.push(action.as_blob(ctx.hyligotchi_cn.clone()));
 
     let tx_hash = ctx
@@ -351,12 +387,7 @@ async fn send(
                 AutoProverEvent::SuccessTx(sequenced_tx_hash, state) => {
                     if sequenced_tx_hash == tx_hash {
                         // let balance = state.balances.get(&identity).copied().unwrap_or(0);
-                        let gotchi: ApiGotchi = state
-                            .people
-                            .get(&identity)
-                            .cloned()
-                            .unwrap_or_default()
-                            .into();
+                        let gotchi: ApiGotchi = state.get(&identity).unwrap_or_default().into();
                         return Ok(Json(gotchi));
                     }
                 }

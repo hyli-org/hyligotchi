@@ -10,6 +10,7 @@ pub struct ContractInit {
     pub name: ContractName,
     pub program_id: Vec<u8>,
     pub initial_state: StateCommitment,
+    pub constructor_metadata: Option<Vec<u8>>,
 }
 
 pub async fn init_node(
@@ -49,6 +50,7 @@ async fn init_contract(
                 program_id: ProgramId(contract.program_id.to_vec()),
                 state_commitment: contract.initial_state,
                 contract_name: contract.name.clone(),
+                constructor_metadata: contract.constructor_metadata.clone(),
                 ..Default::default()
             })
             .await?;
