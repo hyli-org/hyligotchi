@@ -25,23 +25,22 @@ export const EMPTY_FOOD_BALANCES: FoodBalances = {
   HYLLAR: 0
 };
 
-// API endpoints
-const INDEXER_BASE_URL = import.meta.env.VITE_INDEXER_BASE_URL + '/v1/indexer/contract';
-
-
 // API functions
 export const foodBalanceAPI = {
   // Fetch current balances from indexer
-  async fetchBalances(identity: string): Promise<FoodBalances> {
+  async fetchBalances(identity: string, indexerUrl?: string): Promise<FoodBalances> {
     if (!identity) {
       throw new Error('Identity is required to fetch balances');
     }
 
+    const baseUrl = indexerUrl || import.meta.env.VITE_INDEXER_BASE_URL || 'http://localhost:4008';
+    const indexerBaseUrl = baseUrl + '/v1/indexer/contract';
+
     try {
       // Fetch all balances in parallel
       const [oranjResponse, hyllarResponse] = await Promise.all([
-        fetch(`${INDEXER_BASE_URL}/oranj/balance/${identity}`),
-        fetch(`${INDEXER_BASE_URL}/oxygen/balance/${identity}`) // oxygen for HYLLAR
+        fetch(`${indexerBaseUrl}/oranj/balance/${identity}`),
+        fetch(`${indexerBaseUrl}/oxygen/balance/${identity}`) // oxygen for HYLLAR
       ]);
 
       // Handle ORANJ balance
@@ -80,17 +79,17 @@ export const foodBalanceAPI = {
 
   // Note: Consume and add operations should be handled by the Hyligotchi server
   // These are kept for compatibility but will need to be refactored
-  async consumeFood(_foodType: FoodType, _amount: number = 1, identity: string): Promise<FoodBalances> {
+  async consumeFood(_foodType: FoodType, _amount: number = 1, identity: string, indexerUrl?: string): Promise<FoodBalances> {
     // This should trigger a feed action on the Hyligotchi server
     // For now, just return the current balances
     console.warn('consumeFood should be handled by Hyligotchi server feed endpoints');
-    return this.fetchBalances(identity);
+    return this.fetchBalances(identity, indexerUrl);
   },
 
-  async addFood(_foodType: FoodType, _amount: number = 1, identity: string): Promise<FoodBalances> {
+  async addFood(_foodType: FoodType, _amount: number = 1, identity: string, indexerUrl?: string): Promise<FoodBalances> {
     // This would require interaction with the token contracts
     console.warn('addFood requires interaction with token contracts');
-    return this.fetchBalances(identity);
+    return this.fetchBalances(identity, indexerUrl);
   }
 };
 

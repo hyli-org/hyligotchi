@@ -9,7 +9,7 @@ import type {
   FoodBalanceState
 } from '../utils/foodBalances';
 
-export const useFoodBalances = (useAPI: boolean = false, identity?: string) => {
+export const useFoodBalances = (useAPI: boolean = false, identity?: string, indexerUrl?: string) => {
   const [state, setState] = useState<FoodBalanceState>({
     balances: EMPTY_FOOD_BALANCES,
     loading: true, // Start with loading true since we need to fetch from server
@@ -25,7 +25,7 @@ export const useFoodBalances = (useAPI: boolean = false, identity?: string) => {
     
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const balances = await foodBalanceAPI.fetchBalances(identity);
+      const balances = await foodBalanceAPI.fetchBalances(identity, indexerUrl);
       setState({ balances, loading: false, error: null });
     } catch (error) {
       setState(prev => ({ 
@@ -34,14 +34,14 @@ export const useFoodBalances = (useAPI: boolean = false, identity?: string) => {
         error: error instanceof Error ? error.message : 'Failed to fetch balances' 
       }));
     }
-  }, [useAPI, identity]);
+  }, [useAPI, identity, indexerUrl]);
 
   // Initialize - fetch from API if enabled
   useEffect(() => {
     if (useAPI && identity) {
       fetchBalances();
     }
-  }, [useAPI, identity, fetchBalances]);
+  }, [useAPI, identity, indexerUrl, fetchBalances]);
 
   // Consume food - requires API connection
   const consumeFood = useCallback(async (foodType: FoodType, amount: number = 1) => {
@@ -62,7 +62,7 @@ export const useFoodBalances = (useAPI: boolean = false, identity?: string) => {
       setState(prev => ({ ...prev, loading: true }));
       // Note: consumeFood API currently just returns fetched balances
       // This should be handled by the Hyligotchi feed endpoints
-      const newBalances = await foodBalanceAPI.fetchBalances(identity);
+      const newBalances = await foodBalanceAPI.fetchBalances(identity, indexerUrl);
       setState({ balances: newBalances, loading: false, error: null });
       return newBalances;
     } catch (error) {
@@ -87,7 +87,7 @@ export const useFoodBalances = (useAPI: boolean = false, identity?: string) => {
     try {
       // Note: addFood should interact with token contracts
       // For now, just refresh balances
-      const newBalances = await foodBalanceAPI.fetchBalances(identity);
+      const newBalances = await foodBalanceAPI.fetchBalances(identity, indexerUrl);
       setState({ balances: newBalances, loading: false, error: null });
       return newBalances;
     } catch (error) {
@@ -98,7 +98,7 @@ export const useFoodBalances = (useAPI: boolean = false, identity?: string) => {
       }));
       throw error;
     }
-  }, [useAPI, identity]);
+  }, [useAPI, identity, indexerUrl]);
 
   // Check if food is available
   const hasFood = useCallback((foodType: FoodType, amount: number = 1) => {

@@ -36,6 +36,7 @@ export interface TamagotchiLibraryProps {
   identity?: string; // User identity for API authentication
   useAPI?: boolean; // Whether to use API integration (default: true if identity provided)
   apiUrl?: string; // API URL for the Hyligotchi server (default: 'http://localhost:4008')
+  indexerUrl?: string; // Indexer URL for balance queries (default: 'http://localhost:4008')
   
   // Advanced wallet functions
   createIdentityBlobs?: () => [any, any]; // Function to create signed identity blobs
@@ -70,6 +71,7 @@ const TamagotchiLibrary: React.FC<TamagotchiLibraryProps> = ({
   identity,
   useAPI = true,
   apiUrl,
+  indexerUrl,
   createIdentityBlobs
 }) => {
   const [transitionState, setTransitionState] = useState<TransitionState>('mini');
@@ -148,6 +150,7 @@ const TamagotchiLibrary: React.FC<TamagotchiLibraryProps> = ({
           identity={identity}
           useAPI={useAPI}
           apiUrl={apiUrl}
+          indexerUrl={indexerUrl}
           createIdentityBlobs={createIdentityBlobs}
         />
       )}

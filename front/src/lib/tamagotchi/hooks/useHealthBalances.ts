@@ -9,7 +9,7 @@ import type {
   HealthBalanceState
 } from '../utils/healthBalances';
 
-export const useHealthBalances = (useAPI: boolean = false, identity?: string) => {
+export const useHealthBalances = (useAPI: boolean = false, identity?: string, indexerUrl?: string) => {
   const [state, setState] = useState<HealthBalanceState>({
     balances: EMPTY_HEALTH_BALANCES,
     loading: true, // Start with loading true since we need to fetch from server
@@ -25,7 +25,7 @@ export const useHealthBalances = (useAPI: boolean = false, identity?: string) =>
     
     setState(prev => ({ ...prev, loading: true, error: null }));
     try {
-      const balances = await healthBalanceAPI.fetchBalances(identity);
+      const balances = await healthBalanceAPI.fetchBalances(identity, indexerUrl);
       setState({ balances, loading: false, error: null });
     } catch (error) {
       setState(prev => ({ 
@@ -34,14 +34,14 @@ export const useHealthBalances = (useAPI: boolean = false, identity?: string) =>
         error: error instanceof Error ? error.message : 'Failed to fetch balances' 
       }));
     }
-  }, [useAPI, identity]);
+  }, [useAPI, identity, indexerUrl]);
 
   // Initialize - fetch from API if enabled
   useEffect(() => {
     if (useAPI && identity) {
       fetchBalances();
     }
-  }, [useAPI, identity, fetchBalances]);
+  }, [useAPI, identity, indexerUrl, fetchBalances]);
 
   // Consume health item - requires API connection
   const consumeHealth = useCallback(async (healthType: HealthType, amount: number = 1) => {
@@ -62,7 +62,7 @@ export const useHealthBalances = (useAPI: boolean = false, identity?: string) =>
       setState(prev => ({ ...prev, loading: true }));
       // Note: consumeHealth API currently just returns fetched balances
       // This should be handled by the Hyligotchi feed endpoints
-      const newBalances = await healthBalanceAPI.fetchBalances(identity);
+      const newBalances = await healthBalanceAPI.fetchBalances(identity, indexerUrl);
       setState({ balances: newBalances, loading: false, error: null });
       return newBalances;
     } catch (error) {
@@ -87,7 +87,7 @@ export const useHealthBalances = (useAPI: boolean = false, identity?: string) =>
     try {
       // Note: addHealth should interact with token contracts
       // For now, just refresh balances
-      const newBalances = await healthBalanceAPI.fetchBalances(identity);
+      const newBalances = await healthBalanceAPI.fetchBalances(identity, indexerUrl);
       setState({ balances: newBalances, loading: false, error: null });
       return newBalances;
     } catch (error) {
@@ -98,7 +98,7 @@ export const useHealthBalances = (useAPI: boolean = false, identity?: string) =>
       }));
       throw error;
     }
-  }, [useAPI, identity]);
+  }, [useAPI, identity, indexerUrl]);
 
   // Check if health item is available
   const hasHealth = useCallback((healthType: HealthType, amount: number = 1) => {

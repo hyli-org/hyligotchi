@@ -43,6 +43,7 @@ interface FullTamagotchiProps {
   identity?: string;
   useAPI?: boolean;
   apiUrl?: string;
+  indexerUrl?: string;
   createIdentityBlobs?: () => [any, any];
 }
 
@@ -59,6 +60,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
   identity,
   useAPI = true,
   apiUrl,
+  indexerUrl,
   createIdentityBlobs
 }) => {
   const imgRef = useRef<HTMLImageElement>(null);
@@ -69,10 +71,10 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
   const [hasExistingTamagotchi, setHasExistingTamagotchi] = useState(false);
   
   // Use food balances hook with API and identity
-  const { balances: foodBalances, consumeFood } = useFoodBalances(useAPI, identity);
+  const { balances: foodBalances, consumeFood } = useFoodBalances(useAPI, identity, indexerUrl);
   
   // Use health balances hook with API and identity
-  const { balances: healthBalances, consumeHealth } = useHealthBalances(useAPI, identity);
+  const { balances: healthBalances, consumeHealth } = useHealthBalances(useAPI, identity, indexerUrl);
 
   // Set up API client with identity and URL
   useEffect(() => {

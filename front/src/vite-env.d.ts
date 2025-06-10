@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_HYLIGOTCHI_API_URL?: string;
+  readonly VITE_INDEXER_BASE_URL?: string;
 }
 
 interface ImportMeta {

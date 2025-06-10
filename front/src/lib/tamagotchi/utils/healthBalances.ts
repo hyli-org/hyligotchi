@@ -23,19 +23,19 @@ export const EMPTY_HEALTH_BALANCES: HealthBalances = {
   VITAMIN_D: 0
 };
 
-// API endpoints
-const INDEXER_BASE_URL = 'http://localhost:4008/v1/indexer/contract';
-
 // API functions
 export const healthBalanceAPI = {
   // Fetch current balances from indexer
-  async fetchBalances(identity: string): Promise<HealthBalances> {
+  async fetchBalances(identity: string, indexerUrl?: string): Promise<HealthBalances> {
     if (!identity) {
       throw new Error('Identity is required to fetch balances');
     }
 
+    const baseUrl = indexerUrl || import.meta.env.VITE_INDEXER_BASE_URL || 'http://localhost:4008';
+    const indexerBaseUrl = baseUrl + '/v1/indexer/contract';
+
     try {
-      const response = await fetch(`${INDEXER_BASE_URL}/vitamin_d/balance/${identity}`);
+      const response = await fetch(`${indexerBaseUrl}/vitamin_d/balance/${identity}`);
       
       let vitaminDBalance = 0;
       if (response.ok) {
@@ -59,16 +59,16 @@ export const healthBalanceAPI = {
 
   // Note: Consume and add operations should be handled by the Hyligotchi server
   // These are kept for compatibility but will need to be refactored
-  async consumeHealth(_healthType: HealthType, _amount: number = 1, identity: string): Promise<HealthBalances> {
+  async consumeHealth(_healthType: HealthType, _amount: number = 1, identity: string, indexerUrl?: string): Promise<HealthBalances> {
     // This should trigger a feed action on the Hyligotchi server
     console.warn('consumeHealth should be handled by Hyligotchi server feed endpoints');
-    return this.fetchBalances(identity);
+    return this.fetchBalances(identity, indexerUrl);
   },
 
-  async addHealth(_healthType: HealthType, _amount: number = 1, identity: string): Promise<HealthBalances> {
+  async addHealth(_healthType: HealthType, _amount: number = 1, identity: string, indexerUrl?: string): Promise<HealthBalances> {
     // This would require interaction with the token contracts
     console.warn('addHealth requires interaction with token contracts');
-    return this.fetchBalances(identity);
+    return this.fetchBalances(identity, indexerUrl);
   }
 };
 
