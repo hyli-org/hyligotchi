@@ -1,6 +1,6 @@
 {
-  "name": "hyligotchi",
-  "version": "1.0.0",
+  "name": "hyligotchi-js",
+  "version": "1.0.1",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -58,7 +58,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/hyligotchi.git"
+    "url": "https://github.com/hyli-org/hyligotchi.git"
   },
   "license": "MIT",
   "description": "A React library for creating interactive Tamagotchi-style digital pets with customizable features and orange-themed gameplay.",

@@ -115,6 +115,7 @@ function App() {
         // API integration
         identity={useAPI ? identity : undefined}
         useAPI={useAPI}
+        apiUrl={import.meta.env.VITE_HYLIGOTCHI_API_URL || 'http://localhost:4008'}
       />
     </div>
   );

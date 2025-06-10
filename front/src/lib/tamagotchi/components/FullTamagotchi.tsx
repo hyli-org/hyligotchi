@@ -42,6 +42,7 @@ interface FullTamagotchiProps {
   onConnectWallet?: () => void;
   identity?: string;
   useAPI?: boolean;
+  apiUrl?: string;
   createIdentityBlobs?: () => [any, any];
 }
 
@@ -57,6 +58,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
   onConnectWallet,
   identity,
   useAPI = true,
+  apiUrl,
   createIdentityBlobs
 }) => {
   const imgRef = useRef<HTMLImageElement>(null);
@@ -72,13 +74,16 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
   // Use health balances hook with API and identity
   const { balances: healthBalances, consumeHealth } = useHealthBalances(useAPI, identity);
 
-  // Set up API client with identity
+  // Set up API client with identity and URL
   useEffect(() => {
     if (useAPI && identity) {
       console.log('Setting API client identity:', identity);
       apiClient.setIdentity(identity);
+      if (apiUrl) {
+        apiClient.setBaseUrl(apiUrl);
+      }
     }
-  }, [identity, useAPI]);
+  }, [identity, useAPI, apiUrl]);
 
   // Use custom hooks for state management (without tutorial state)
   const {
@@ -162,9 +167,6 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       updatePooState(apiGotchi);
       updateBornAt(apiGotchi);
       
-      // Update balances
-      //await refreshBalances();
-      
       setActionWithTimeout('Cleaned poo!');
       
       // Play cleaning animation if poo was cleaned
@@ -223,7 +225,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     }
   };
   
-  const handleApiHealth = async () => {
+  const handleApiHealth = async (healthType: 'VITAMIN_D') => {
     if (!useAPI || !identity || !isInitialized) {
       return false;
     }
@@ -244,7 +246,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       // Don't update balances from pet stats - they come from indexer
       // Trigger a refresh of balances after using health item
       if (consumeHealth) {
-        await consumeHealth('VITAMIN_D', 1);
+        await consumeHealth(healthType, 1);
       }
       
       // After feeding vitamins, re-fetch the state to get updated health

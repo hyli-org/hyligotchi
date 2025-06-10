@@ -21,6 +21,10 @@ class HyligotchiAPIClient {
     this.identity = identity;
   }
 
+  setBaseUrl(url: string) {
+    this.baseUrl = url;
+  }
+
   private async fetchWithAuth(url: string, options: RequestInit = {}) {
     const headers: HeadersInit = {
       'Content-Type': 'application/json',

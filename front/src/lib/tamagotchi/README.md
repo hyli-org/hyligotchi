@@ -56,6 +56,9 @@ function App() {
 | `initialState` | `object` | - | Initial state for the tamagotchi |
 | `deviceImage` | `string` | `'/hyligotchi-full.png'` | Path to device image |
 | `backgroundImage` | `string` | `'/background.png'` | Path to background image |
+| `apiUrl` | `string` | `'http://localhost:4008'` | API URL for the Hyligotchi server |
+| `identity` | `string` | - | User identity for API authentication |
+| `useAPI` | `boolean` | `true` | Whether to use API integration |
 
 ## Advanced Usage
 
@@ -187,24 +190,37 @@ import { MiniTamagotchi, FullTamagotchi } from './lib/tamagotchi';
 
 This library is part of the Hyligotchi project.
 
-## Environment Variables
+## API Configuration
 
-If you want to integrate the Tamagotchi library with your own API for food and health balances, you can set the following environment variable:
+The Tamagotchi library can integrate with the Hyligotchi API server. Instead of using environment variables (which are resolved at build time), you can pass the API URL directly as a prop:
 
-### `VITE_HYLIGOTCHI_API_URL`
+### Using the `apiUrl` prop
 
-**Optional** - The base URL for your Hyligotchi API endpoints.
-
-- **Default**: `http://localhost:3001/api`
-- **Example**: `https://api.yourdomain.com/hyligotchi`
-
-```bash
-# In your .env file
-VITE_HYLIGOTCHI_API_URL=https://api.yourdomain.com/hyligotchi
+```tsx
+<TamagotchiLibrary 
+  enabled={true}
+  identity="user-wallet-address"
+  apiUrl="https://api.yourdomain.com/hyligotchi"
+  useAPI={true}
+  createIdentityBlobs={() => {
+    // Your function to create signed identity blobs
+    return [blob1, blob2];
+  }}
+/>
 ```
 
-The library will automatically append the following endpoints to this base URL:
-- `/food-balances` - GET, POST (consume/add)
-- `/health-balances` - GET, POST (consume/add)
+### Props for API Integration
 
-**Note**: If you don't set this environment variable, the library will work perfectly fine using mock data for food and health balances. The API integration is completely optional. 
+- `apiUrl` - The base URL for your Hyligotchi API endpoints (default: `'http://localhost:4008'`)
+- `identity` - User identity for API authentication
+- `useAPI` - Whether to use API integration (default: `true`)
+- `createIdentityBlobs` - Function to create signed identity blobs for authenticated requests
+
+The library will automatically use these endpoints:
+- `/api/init?name=...` - Create new Tamagotchi
+- `/api/feed/food?amount=N` - Feed orange
+- `/api/feed/sweets?amount=N` - Feed hyllar
+- `/api/feed/vitamins?amount=N` - Give vitamins
+- `/v1/indexer/contract/hyligotchi/state` - Get current state
+
+**Note**: The `apiUrl` prop allows you to configure the API endpoint at runtime, making it ideal for libraries that need to work with different server URLs without requiring recompilation. 
