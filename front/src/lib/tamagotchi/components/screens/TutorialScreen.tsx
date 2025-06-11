@@ -1,10 +1,11 @@
-import React, { useState, useImperativeHandle } from 'react';
+import React, { useState, useImperativeHandle, useRef } from 'react';
 import Character from '../ui/Character';
 
 interface TutorialScreenProps {
   onCompleteTutorial: () => void;
   username: string;
   setUsername: (name: string) => void;
+  onStepChange?: (step: number) => void;
 }
 
 export interface TutorialScreenRef {
@@ -26,11 +27,27 @@ const STORY_STEPS = [
 const TutorialScreen = React.forwardRef<TutorialScreenRef, TutorialScreenProps>(({ 
   onCompleteTutorial,
   username,
-  setUsername
+  setUsername,
+  onStepChange
 }, ref) => {
   const [currentStep, setCurrentStep] = useState(0);
+  
+  // Notify parent of step changes
+  React.useEffect(() => {
+    onStepChange?.(currentStep);
+  }, [currentStep, onStepChange]);
   const [isBlinking, setIsBlinking] = useState(false);
   const [tempName, setTempName] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus input when reaching step 2
+  React.useEffect(() => {
+    if (currentStep === 2 && inputRef.current) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 100);
+    }
+  }, [currentStep]);
 
   // Handle left button - now also advances the story
   const handleLeftButton = () => {
@@ -223,14 +240,29 @@ const TutorialScreen = React.forwardRef<TutorialScreenRef, TutorialScreenProps>(
 
         {/* Name input field for step 2 */}
         {currentStep === 2 && (
-          <div style={{
-            position: 'absolute',
-            bottom: '20%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 15,
-          }}>
+          <div 
+            style={{
+              position: 'absolute',
+              bottom: '10%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 10,
+              width: '80%',
+              padding: '20px',
+              display: 'flex',
+              justifyContent: 'center',
+              cursor: 'text',
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              inputRef.current?.focus();
+            }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+            }}
+          >
             <input
+              ref={inputRef}
               type="text"
               value={tempName}
               onChange={(e) => setTempName(e.target.value)}
@@ -246,12 +278,20 @@ const TutorialScreen = React.forwardRef<TutorialScreenRef, TutorialScreenProps>(
                 backgroundColor: '#fff',
                 color: '#333',
                 outline: 'none',
-                boxShadow: '2px 2px 4px rgba(0,0,0,0.3)'
+                boxShadow: '2px 2px 4px rgba(0,0,0,0.3)',
+                width: '200px',
+                maxWidth: '100%',
               }}
               onKeyPress={(e) => {
                 if (e.key === 'Enter' && tempName.trim()) {
                   handleMiddleButton();
                 }
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
               }}
               autoFocus
             />

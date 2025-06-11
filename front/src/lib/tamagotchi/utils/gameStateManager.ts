@@ -42,8 +42,8 @@ export const createInitialGameState = (): GameState => ({
   selectedAction: null,
   
   // Balances from API
-  foodBalances: { ORANJ: 0, HYLLAR: 0 },
-  healthBalances: { VITAMIN_D: 0 },
+  foodBalances: { ORANJ: 0, OXYGEN: 0 },
+  healthBalances: { VITAMIN: 0 },
   
   // Timestamps
   lastUpdated: Date.now(),

@@ -42,11 +42,11 @@ export const useMenuState = (
   const [inOrangeNinjaMenu, setInOrangeNinjaMenu] = useState(false);
   const [inStatsMenu, setInStatsMenu] = useState(false);
   const [selectedFood, setSelectedFood] = useState<FoodType>('ORANJ');
-  const [selectedHealth, setSelectedHealth] = useState<HealthType>('VITAMIN_D');
+  const [selectedHealth, setSelectedHealth] = useState<HealthType>('VITAMIN');
 
   const handleZoneClick = () => {
     if (inFoodMenu) {
-      setSelectedFood(current => current === 'ORANJ' ? 'HYLLAR' : 'ORANJ');
+      setSelectedFood(current => current === 'ORANJ' ? 'OXYGEN' : 'ORANJ');
     } else if (inHealthMenu) {
       // Only one health option for now
     } else if (!inCasinoMenu && !inOrderbookMenu && !inOrangeNinjaMenu && !inStatsMenu) {
@@ -77,7 +77,7 @@ export const useMenuState = (
       setSelectedAction(null);
       setActionWithTimeout('Opened Casino!');
     } else if (inOrderbookMenu) {
-      window.open('https://orderbook.testnet.hyli.org/', '_blank');
+      window.open('https://trail.testnet.hyli.org/', '_blank');
       setInOrderbookMenu(false);
       setSelectedAction(null);
       setActionWithTimeout('Opened Hyliquid!');
@@ -91,7 +91,7 @@ export const useMenuState = (
       setSelectedFood('ORANJ');
     } else if (selectedAction === "health_status") {
       setInHealthMenu(true);
-      setSelectedHealth('VITAMIN_D');
+      setSelectedHealth('VITAMIN');
     } else if (selectedAction === "light") {
       setInCasinoMenu(true);
     } else if (selectedAction === "stats") {

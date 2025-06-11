@@ -1,11 +1,11 @@
 // Food balance interface for type safety
 export interface FoodBalances {
   ORANJ: number;
-  HYLLAR: number;
+  OXYGEN: number;
 }
 
 // Food types for type safety
-export type FoodType = 'ORANJ' | 'HYLLAR';
+export type FoodType = 'ORANJ' | 'OXYGEN';
 
 // Indexer balance response interface
 export interface IndexerBalanceResponse {
@@ -22,7 +22,7 @@ export interface FoodBalanceState {
 // Empty initial balances - data comes from server only
 export const EMPTY_FOOD_BALANCES: FoodBalances = {
   ORANJ: 0,
-  HYLLAR: 0
+  OXYGEN: 0
 };
 
 // API functions
@@ -38,9 +38,9 @@ export const foodBalanceAPI = {
 
     try {
       // Fetch all balances in parallel
-      const [oranjResponse, hyllarResponse] = await Promise.all([
+      const [oranjResponse, oxygenResponse] = await Promise.all([
         fetch(`${indexerBaseUrl}/oranj/balance/${identity}`),
-        fetch(`${indexerBaseUrl}/oxygen/balance/${identity}`) // oxygen for HYLLAR
+        fetch(`${indexerBaseUrl}/oxygen/balance/${identity}`)
       ]);
 
       // Handle ORANJ balance
@@ -55,21 +55,21 @@ export const foodBalanceAPI = {
         }
       }
 
-      // Handle HYLLAR balance
-      let hyllarBalance = 0;
-      if (hyllarResponse.ok) {
+      // Handle OXYGEN balance
+      let oxygenBalance = 0;
+      if (oxygenResponse.ok) {
         try {
-          const hyllarData: IndexerBalanceResponse = await hyllarResponse.json();
-          hyllarBalance = parseInt(hyllarData.balance, 10) || 0;
+          const oxygenData: IndexerBalanceResponse = await oxygenResponse.json();
+          oxygenBalance = parseInt(oxygenData.balance, 10) || 0;
         } catch {
           // If JSON parsing fails, assume 0 balance
-          hyllarBalance = 0;
+          oxygenBalance = 0;
         }
       }
 
       return {
         ORANJ: oranjBalance,
-        HYLLAR: hyllarBalance
+        OXYGEN: oxygenBalance
       };
     } catch (error) {
       console.error('Failed to fetch balances:', error);
@@ -118,6 +118,6 @@ export const foodBalanceUtils = {
 
   // Get total food count
   getTotalFood: (balances: FoodBalances): number => {
-    return balances.ORANJ + balances.HYLLAR;
+    return balances.ORANJ + balances.OXYGEN;
   }
 }; 

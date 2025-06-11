@@ -105,11 +105,9 @@ class HyligotchiAPIClient {
       });
 
       if (!response.ok) {
-        if (response.status === 404) {
-          // No Tamagotchi exists for this identity
-          return null;
-        }
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        const error = new Error(`API Error: ${response.status} ${response.statusText}`) as any;
+        error.response = { status: response.status };
+        throw error;
       }
 
       return await response.json();

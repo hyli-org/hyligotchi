@@ -57,7 +57,7 @@ const CasinoMenuScreen: React.FC<CasinoMenuScreenProps> = () => {
         padding: '5%'
       }}>
         <div style={{ marginBottom: '2%' }}>TO GAIN MORE</div>
-        <div style={{ marginBottom: '2%' }}>ORANJ, PLAY ON</div>
+        <div style={{ marginBottom: '2%' }}>OXYGEN, PLAY ON</div>
         <div style={{ marginBottom: '8%' }}>EZKASINO</div>
         
       </div>

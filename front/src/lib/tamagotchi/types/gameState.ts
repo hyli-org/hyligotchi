@@ -20,10 +20,10 @@ export interface GameState {
   // Balances (will come from server/blockchain)
   foodBalances: {
     ORANJ: number;
-    HYLLAR: number;
+    OXYGEN: number;
   };
   healthBalances: {
-    VITAMIN_D: number;
+    VITAMIN: number;
   };
   
   // Timestamps for server sync

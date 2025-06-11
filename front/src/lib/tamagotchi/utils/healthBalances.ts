@@ -1,10 +1,10 @@
 // Health balance interface for type safety
 export interface HealthBalances {
-  VITAMIN_D: number;
+  VITAMIN: number;
 }
 
 // Health types for type safety
-export type HealthType = 'VITAMIN_D';
+export type HealthType = 'VITAMIN';
 
 // Indexer balance response interface
 export interface IndexerBalanceResponse {
@@ -20,7 +20,7 @@ export interface HealthBalanceState {
 
 // Empty initial balances - data comes from server only
 export const EMPTY_HEALTH_BALANCES: HealthBalances = {
-  VITAMIN_D: 0
+  VITAMIN: 0
 };
 
 // API functions
@@ -35,24 +35,24 @@ export const healthBalanceAPI = {
     const indexerBaseUrl = baseUrl + '/v1/indexer/contract';
 
     try {
-      const response = await fetch(`${indexerBaseUrl}/vitamin_d/balance/${identity}`);
+      const response = await fetch(`${indexerBaseUrl}/vitamin/balance/${identity}`);
       
-      let vitaminDBalance = 0;
+      let vitaminBalance = 0;
       if (response.ok) {
         try {
           const data: IndexerBalanceResponse = await response.json();
-          vitaminDBalance = parseInt(data.balance, 10) || 0;
+          vitaminBalance = parseInt(data.balance, 10) || 0;
         } catch {
           // If JSON parsing fails, assume 0 balance
-          vitaminDBalance = 0;
+          vitaminBalance = 0;
         }
       }
 
       return {
-        VITAMIN_D: vitaminDBalance
+        VITAMIN: vitaminBalance
       };
     } catch (error) {
-      console.error('Failed to fetch vitamin D balance:', error);
+      console.error('Failed to fetch vitamin balance:', error);
       throw new Error('Failed to fetch health balances from indexer');
     }
   },
@@ -97,6 +97,6 @@ export const healthBalanceUtils = {
 
   // Get total health items count
   getTotalHealth: (balances: HealthBalances): number => {
-    return balances.VITAMIN_D;
+    return balances.VITAMIN;
   }
 }; 

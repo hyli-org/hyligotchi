@@ -55,9 +55,9 @@ const OrderbookMenuScreen: React.FC<OrderbookMenuScreenProps> = () => {
         letterSpacing: '2px',
         padding: '5%'
       }}>
-        <div style={{ marginBottom: '2%' }}>TO BUY MORE</div>
-        <div style={{ marginBottom: '2%' }}>VITAMIN D, TRADE</div>
-        <div style={{ marginBottom: '8%' }}>ON HYLIQUID</div>
+        <div style={{ marginBottom: '2%' }}>TO GET MORE</div>
+        <div style={{ marginBottom: '2%' }}>VITAMIN, PLAY</div>
+        <div style={{ marginBottom: '8%' }}>ON ORANGE TRAIL</div>
         
       </div>
       

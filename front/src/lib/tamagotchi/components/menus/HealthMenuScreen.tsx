@@ -3,7 +3,7 @@ import type { HealthBalances } from '../../utils/healthBalances';
 
 // Health Menu Screen Component
 interface HealthMenuScreenProps {
-  selectedHealth: 'VITAMIN_D';
+  selectedHealth: 'VITAMIN';
   healthBalances: HealthBalances;
 }
 
@@ -53,7 +53,7 @@ const HealthMenuScreen: React.FC<HealthMenuScreenProps> = ({ selectedHealth, hea
         fontSize: 'calc(min(1vw, 1vh) * 3)',
         color: '#333'
       }}>
-        {/* VITAMIN D Option */}
+        {/* VITAMIN Option */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -64,17 +64,17 @@ const HealthMenuScreen: React.FC<HealthMenuScreenProps> = ({ selectedHealth, hea
             width: '16px',
             height: '16px',
             marginRight: '10%',
-            backgroundColor: selectedHealth === 'VITAMIN_D' ? '#333' : 'transparent',
+            backgroundColor: selectedHealth === 'VITAMIN' ? '#333' : 'transparent',
             border: '2px solid #333'
           }}></div>
-          <span style={{ letterSpacing: '3px', lineHeight: '1.3', flex: 1 }}>VITAMIN D</span>
+          <span style={{ letterSpacing: '3px', lineHeight: '1.3', flex: 1 }}>VITAMIN</span>
           <span style={{ 
             letterSpacing: '2px', 
             lineHeight: '1.3',
             fontSize: 'calc(min(1vw, 1vh) * 2.5)',
             color: '#555'
           }}>
-            x{healthBalances.VITAMIN_D}
+            x{healthBalances.VITAMIN}
           </span>
         </div>
       </div>

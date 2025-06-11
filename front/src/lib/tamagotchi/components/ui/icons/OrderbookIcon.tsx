@@ -1,10 +1,10 @@
 import React from 'react';
-import orderbookSvg from '../../../assets/orderbook.svg';
+import iconUfoSvg from '../../../assets/icon-ufo.svg';
 
 const OrderbookIcon: React.FC = () => (
   <img 
-    src={orderbookSvg}
-    alt="Orderbook"
+    src={iconUfoSvg}
+    alt="UFO"
     style={{
       width: '100%',
       height: '100%',

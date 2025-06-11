@@ -3,7 +3,7 @@ import type { FoodBalances } from '../../utils/foodBalances';
 
 // Food Menu Screen Component
 interface FoodMenuScreenProps {
-  selectedFood: 'ORANJ' | 'HYLLAR';
+  selectedFood: 'ORANJ' | 'OXYGEN';
   foodBalances: FoodBalances;
 }
 
@@ -78,7 +78,7 @@ const FoodMenuScreen: React.FC<FoodMenuScreenProps> = ({ selectedFood, foodBalan
           </span>
         </div>
         
-        {/* HYLLAR Option */}
+        {/* OXYGEN Option */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -89,17 +89,17 @@ const FoodMenuScreen: React.FC<FoodMenuScreenProps> = ({ selectedFood, foodBalan
             width: '16px',
             height: '16px',
             marginRight: '10%',
-            backgroundColor: selectedFood === 'HYLLAR' ? '#333' : 'transparent',
+            backgroundColor: selectedFood === 'OXYGEN' ? '#333' : 'transparent',
             border: '2px solid #333'
           }}></div>
-          <span style={{ letterSpacing: '3px', lineHeight: '1.3', flex: 1 }}>HYLLAR</span>
+          <span style={{ letterSpacing: '3px', lineHeight: '1.3', flex: 1 }}>OXYGEN</span>
           <span style={{ 
             letterSpacing: '2px', 
             lineHeight: '1.3',
             fontSize: 'calc(min(1vw, 1vh) * 2.5)',
             color: '#555'
           }}>
-            x{foodBalances.HYLLAR}
+            x{foodBalances.OXYGEN}
           </span>
         </div>
       </div>
