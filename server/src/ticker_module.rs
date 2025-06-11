@@ -1,8 +1,8 @@
-use crate::app::CryptoContext;
+use crate::{app::CryptoContext, utils::AppError};
 use client_sdk::rest_client::{NodeApiClient, NodeApiHttpClient};
 use hyle_modules::modules::Module;
 use hyligotchi::HyliGotchiAction;
-use sdk::{verifiers::Secp256k1Blob, BlobTransaction, Identity};
+use sdk::{verifiers::Secp256k1Blob, Blob, BlobTransaction, Identity};
 use secp256k1::Message;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
@@ -45,28 +45,12 @@ impl Module for TickerModule {
                     .map_err(|_| anyhow::anyhow!("Time error"))?
                     .as_millis();
 
-                // Create the data to sign
-                let mut data_to_sign = now.to_le_bytes().to_vec();
-                data_to_sign.extend_from_slice("HyliGotchiWorldTick".as_bytes());
-
-                // Hash the data
-                let mut hasher = Sha256::new();
-                hasher.update(data_to_sign.clone());
-                let message_hash: [u8; 32] = hasher.finalize().into();
-
-                // Sign the hash
-                let signature = crypto_context.secp.sign_ecdsa(
-                    Message::from_digest(message_hash),
-                    &crypto_context.secret_key,
-                );
-
-                // Create the secp256k1 blob
-                let blob = Secp256k1Blob::new(
-                    Identity("hyligtochi_server@secp256k1".to_string()),
-                    &data_to_sign,
-                    &hex::encode(crypto_context.public_key.serialize()),
-                    &signature.to_string(),
-                )?;
+                let blob = create_secp256k1_blob(
+                    &crypto_context,
+                    &Identity("hyligtochi_server@secp256k1".to_string()),
+                    now,
+                )
+                .map_err(|e| AppError(axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
                 // Create the Tick action blob
                 let action_blob = HyliGotchiAction::Tick(now).as_blob("hyligotchi".into());
@@ -83,4 +67,29 @@ impl Module for TickerModule {
             }
         }
     }
+}
+
+fn create_secp256k1_blob(
+    crypto: &CryptoContext,
+    identity: &Identity,
+    nonce: u128,
+) -> anyhow::Result<Blob> {
+    // Let's create a secp2561k1 blob signing the data
+    let mut data_to_sign = nonce.to_le_bytes().to_vec();
+    data_to_sign.extend_from_slice("HyliGotchiWorldTick".as_bytes());
+
+    let mut hasher = Sha256::new();
+    hasher.update(data_to_sign.clone());
+    let message_hash: [u8; 32] = hasher.finalize().into();
+    let signature = crypto
+        .secp
+        .sign_ecdsa(Message::from_digest(message_hash), &crypto.secret_key);
+
+    Ok(Secp256k1Blob::new(
+        identity.clone(),
+        &data_to_sign,
+        &crypto.public_key.to_string(),
+        &signature.to_string(),
+    )?
+    .as_blob())
 }
