@@ -245,7 +245,7 @@ pub async fn get_state(
             {
                 Ok(gotchi) => match gotchi.name.is_empty() {
                     true => None, // No gotchi found for this identity
-                    false => Some(s),
+                    false => Some(gotchi),
                 },
                 Err(_) => None, // Error retrieving gotchi
             }
