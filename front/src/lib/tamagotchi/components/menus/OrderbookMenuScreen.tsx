@@ -39,7 +39,7 @@ const OrderbookMenuScreen: React.FC<OrderbookMenuScreenProps> = () => {
         letterSpacing: '4px',
         lineHeight: '1.2'
       }}>
-        HYLIQUID
+        ORANGE TRAIL
       </div>
       
       {/* Orderbook Message */}
