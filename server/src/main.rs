@@ -3,6 +3,7 @@ use app::{AppModule, AppModuleCtx};
 use axum::Router;
 use clap::Parser;
 use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiHttpClient};
+use client_sdk::transaction_builder::TxExecutorHandler;
 use conf::Conf;
 use contracts::HYLI_GOTCHI_ELF;
 use hyle_modules::{

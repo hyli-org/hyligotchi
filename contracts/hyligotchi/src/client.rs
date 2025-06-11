@@ -118,6 +118,10 @@ impl TxExecutorHandler for HyliGotchiWorld {
         borsh::to_vec(&next_view).map_err(|e| format!("Failed to serialize combined view: {}", e))
     }
 
+    fn get_state_commitment(&self) -> StateCommitment {
+        get_state_commitment(*self.gotchis.0.root(), self.backend_pubkey)
+    }
+
     fn handle(&mut self, calldata: &Calldata) -> anyhow::Result<sdk::HyleOutput> {
         let initial_state_commitment =
             get_state_commitment(*self.gotchis.0.root(), self.backend_pubkey);
@@ -268,9 +272,6 @@ impl HyliGotchiWorld {
     }
     pub fn get(&self, user: &Identity) -> Option<HyliGotchi> {
         self.gotchis.0.get(&HyliGotchi::compute_key(user)).ok()
-    }
-    pub fn get_state_commitment(&self) -> StateCommitment {
-        get_state_commitment(*self.gotchis.0.root(), self.backend_pubkey)
     }
 }
 

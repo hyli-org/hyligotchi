@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::utils::AppError;
+use crate::{ticker_module::create_secp256k1_blob, utils::AppError};
 use anyhow::Result;
 use axum::{
     extract::{Json, Query, State},
@@ -11,6 +11,7 @@ use axum::{
 };
 use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiClient, NodeApiHttpClient};
 
+use axum::extract::Path;
 use hyle_modules::{
     bus::{BusClientReceiver, SharedMessageBus},
     module_bus_client, module_handle_messages,
@@ -70,6 +71,7 @@ impl Module for AppModule {
             .route("/api/feed/sweets", post(feed_sweets))
             .route("/api/feed/vitamins", post(feed_vitamins))
             .route("/api/config", get(get_config))
+            .route("/api/tick/:secret", post(trigger_tick))
             .with_state(state)
             .layer(cors); // Appliquer le middleware CORS
 
@@ -297,6 +299,40 @@ async fn feed_vitamins(
         HyliGotchiAction::FeedVitamins(Identity(auth.identity.clone()), feed_amount.amount),
         auth,
         wallet_blobs.to_vec(),
+    )
+    .await
+}
+async fn trigger_tick(
+    State(ctx): State<RouterCtx>,
+    headers: HeaderMap,
+    Path(secret): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    // Get the expected secret from env or default to "test"
+    let expected_secret = std::env::var("TICK_SECRET").unwrap_or_else(|_| "test".to_string());
+
+    if secret != expected_secret {
+        return Err(AppError(
+            StatusCode::UNAUTHORIZED,
+            anyhow::anyhow!("Invalid secret"),
+        ));
+    }
+
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| anyhow::anyhow!("Time error"))?
+        .as_millis();
+
+    let blob = create_secp256k1_blob(
+        &ctx.crypto_context,
+        &Identity("hyligtochi_server@secp256k1".to_string()),
+        now,
+    )?;
+
+    send(
+        ctx,
+        HyliGotchiAction::Tick(now),
+        AuthHeaders::from_headers(&headers)?,
+        vec![blob],
     )
     .await
 }

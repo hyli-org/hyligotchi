@@ -1,4 +1,4 @@
-use crate::{app::CryptoContext, utils::AppError};
+use crate::app::CryptoContext;
 use client_sdk::rest_client::{NodeApiClient, NodeApiHttpClient};
 use hyle_modules::modules::Module;
 use hyligotchi::HyliGotchiAction;
@@ -17,17 +17,15 @@ pub struct TickerModule {
 impl Module for TickerModule {
     type Context = (Arc<NodeApiHttpClient>, Arc<CryptoContext>);
 
-    fn build(
+    async fn build(
         _bus: hyle_modules::bus::SharedMessageBus,
         ctx: Self::Context,
-    ) -> impl futures::Future<Output = anyhow::Result<Self>> + Send {
-        async move {
-            Ok(TickerModule {
-                interval: 600, // 10 minutes in seconds
-                node_client: ctx.0,
-                crypto_context: ctx.1,
-            })
-        }
+    ) -> anyhow::Result<Self> {
+        Ok(TickerModule {
+            interval: 600, // 10 minutes in seconds
+            node_client: ctx.0,
+            crypto_context: ctx.1,
+        })
     }
 
     fn run(&mut self) -> impl futures::Future<Output = anyhow::Result<()>> + Send {
@@ -49,8 +47,7 @@ impl Module for TickerModule {
                     &crypto_context,
                     &Identity("hyligtochi_server@secp256k1".to_string()),
                     now,
-                )
-                .map_err(|e| AppError(axum::http::StatusCode::INTERNAL_SERVER_ERROR, e))?;
+                )?;
 
                 // Create the Tick action blob
                 let action_blob = HyliGotchiAction::Tick(now).as_blob("hyligotchi".into());
@@ -59,7 +56,7 @@ impl Module for TickerModule {
                 let tx_hash = node_client
                     .send_tx_blob(BlobTransaction::new(
                         Identity("hyligtochi_server@secp256k1".to_string()),
-                        vec![blob.as_blob(), action_blob],
+                        vec![blob, action_blob],
                     ))
                     .await?;
 
@@ -69,7 +66,7 @@ impl Module for TickerModule {
     }
 }
 
-fn create_secp256k1_blob(
+pub fn create_secp256k1_blob(
     crypto: &CryptoContext,
     identity: &Identity,
     nonce: u128,
