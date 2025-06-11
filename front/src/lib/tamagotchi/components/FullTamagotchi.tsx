@@ -653,7 +653,56 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
         </button>
       )}
       
-      {/* Device Container */}
+      {/* Share to X Button */}
+      <button
+        onClick={() => {
+          // Generate share text with current state
+          const shareText = `Check out my Hyligotchi ${tamagotchiUsername || 'pet'}!\n\n` +
+            `Happiness: ${happiness}/10\n` +
+            `Hunger: ${hunger}/10\n` +
+            `Health: ${health === 'Healthy' || health === 'healthy' ? 'Healthy' : 
+                        health === 'Sick' || health === 'sick' ? 'Sick' : 'Dead'}\n\n` +
+            `Play Hyligotchi on @hyli_org!\n`;
+          
+          const shareUrl = 'https://hyli.fun';
+          const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
+          window.open(tweetUrl, '_blank');
+        }}
+        style={{
+          position: 'absolute',
+          bottom: 20,
+          right: 20,
+          background: '#1DA1F2',
+          color: 'white',
+          border: 'none',
+          borderRadius: '12px',
+          padding: '16px 32px',
+          cursor: 'pointer',
+          fontSize: '18px',
+          fontWeight: 'bold',
+          zIndex: 10001,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: "'Press Start 2P', monospace",
+          boxShadow: '0 4px 12px rgba(29, 161, 242, 0.4)',
+          transition: 'transform 0.2s, box-shadow 0.2s',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = 'scale(1.05)';
+          e.currentTarget.style.boxShadow = '0 6px 16px rgba(29, 161, 242, 0.6)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.boxShadow = '0 4px 12px rgba(29, 161, 242, 0.4)';
+        }}
+        title="Share to X"
+      >
+        SHARE TO X
+      </button>
+      
+      {/* 
+          Device Container */}
       <div style={{ 
         position: 'relative',
         ...getTransitionStyles()
