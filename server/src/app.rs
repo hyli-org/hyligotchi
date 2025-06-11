@@ -17,10 +17,8 @@ use hyle_modules::{
     modules::{prover::AutoProverEvent, BuildApiContextInner, Module},
 };
 use hyligotchi::{client::HyliGotchiWorld, HyliGotchi, HyliGotchiAction};
-use sdk::{verifiers::Secp256k1Blob, Blob, BlobTransaction, ContractName, Identity};
-use secp256k1::Message;
+use sdk::{Blob, BlobTransaction, ContractName, Identity};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
 use tower_http::cors::{Any, CorsLayer};
 
@@ -33,7 +31,7 @@ pub struct AppModuleCtx {
     pub node_client: Arc<NodeApiHttpClient>,
     pub indexer_client: Arc<IndexerApiHttpClient>,
     pub hyligotchi_cn: ContractName,
-    pub crypto_context: CryptoContext,
+    pub crypto_context: Arc<CryptoContext>,
 }
 
 module_bus_client! {
@@ -66,7 +64,6 @@ impl Module for AppModule {
         let api = Router::new()
             .route("/_health", get(health))
             .route("/api/init", post(init))
-            .route("/api/tick", post(tick))
             .route("/api/poop/clean", post(clean_poop))
             .route("/api/resurrect", post(resurrect))
             .route("/api/feed/food", post(feed_food))
@@ -108,7 +105,7 @@ struct RouterCtx {
     pub client: Arc<NodeApiHttpClient>,
     pub indexer_client: Arc<IndexerApiHttpClient>,
     pub hyligotchi_cn: ContractName,
-    pub crypto_context: CryptoContext,
+    pub crypto_context: Arc<CryptoContext>,
 }
 
 pub struct HyleOofCtx {
@@ -249,56 +246,6 @@ async fn clean_poop(
         wallet_blobs.to_vec(),
     )
     .await
-}
-
-fn create_secp256k1_blob(
-    crypto: &CryptoContext,
-    identity: &Identity,
-    nonce: u128,
-) -> anyhow::Result<Blob> {
-    // Let's create a secp2561k1 blob signing the data
-    let mut data_to_sign = nonce.to_le_bytes().to_vec();
-    data_to_sign.extend_from_slice("HyliGotchiWorldTick".as_bytes());
-
-    let mut hasher = Sha256::new();
-    hasher.update(data_to_sign.clone());
-    let message_hash: [u8; 32] = hasher.finalize().into();
-    let signature = crypto
-        .secp
-        .sign_ecdsa(Message::from_digest(message_hash), &crypto.secret_key);
-
-    Ok(Secp256k1Blob::new(
-        identity.clone(),
-        &data_to_sign,
-        &crypto.public_key.to_string(),
-        &signature.to_string(),
-    )?
-    .as_blob())
-}
-
-async fn tick(
-    State(ctx): State<RouterCtx>,
-    headers: HeaderMap,
-    Json(wallet_blobs): Json<[Blob; 2]>,
-) -> Result<impl IntoResponse, AppError> {
-    let auth = AuthHeaders::from_headers(&headers)?;
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_err(|_| {
-            AppError(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                anyhow::anyhow!("Time error"),
-            )
-        })?
-        .as_millis();
-
-    let blob = create_secp256k1_blob(&ctx.crypto_context, &Identity(auth.identity.clone()), now)
-        .map_err(|e| AppError(StatusCode::INTERNAL_SERVER_ERROR, e))?;
-
-    let mut blobs = wallet_blobs.to_vec();
-    blobs.push(blob);
-
-    send(ctx, HyliGotchiAction::Tick(now), auth, blobs).await
 }
 
 #[derive(Deserialize)]

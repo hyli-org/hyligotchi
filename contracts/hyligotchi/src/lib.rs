@@ -519,7 +519,7 @@ fn check_tick_commitment(
     data_to_sign.extend_from_slice("HyliGotchiWorldTick".as_bytes());
     // Check if the calldata contains a secp256k1 blob with the expected data
     let blob = CheckSecp256k1::new(calldata, &data_to_sign)
-        .with_blob_index(BlobIndex(2))
+        .with_blob_index(BlobIndex(0))
         .expect()?;
     if blob.public_key != *backend_pubkey {
         return Err("Invalid public key".to_string());

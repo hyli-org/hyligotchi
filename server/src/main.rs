@@ -25,10 +25,12 @@ use std::sync::Arc;
 use tracing::{error, info, warn};
 
 use crate::app::CryptoContext;
+use crate::ticker_module::TickerModule;
 
 mod app;
 mod conf;
 mod init;
+mod ticker_module;
 mod utils;
 
 #[derive(Parser, Debug)]
@@ -107,16 +109,18 @@ async fn main() -> Result<()> {
         openapi: std::sync::Mutex::new(Default::default()),
     });
 
+    let crypto_context = CryptoContext {
+        secp: secp.clone(),
+        secret_key,
+        public_key,
+    };
+
     let app_ctx = Arc::new(AppModuleCtx {
         api: build_api_ctx.clone(),
         node_client,
         indexer_client,
         hyligotchi_cn: args.contract_name.into(),
-        crypto_context: CryptoContext {
-            secp,
-            secret_key,
-            public_key,
-        },
+        crypto_context: Arc::new(crypto_context),
     });
 
     handler.build_module::<AppModule>(app_ctx.clone()).await?;
@@ -179,6 +183,10 @@ async fn main() -> Result<()> {
                 pubkey: None,
             },
         })
+        .await?;
+
+    handler
+        .build_module::<TickerModule>((app_ctx.node_client.clone(), app_ctx.crypto_context.clone()))
         .await?;
 
     #[cfg(unix)]
