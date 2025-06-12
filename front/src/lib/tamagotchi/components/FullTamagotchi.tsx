@@ -162,24 +162,6 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     }
   };
 
-  // API-enabled tick function
-  const handleTick = async () => {
-    if (!useAPI || !identity) {
-      setActionWithTimeout('Cannot tick without API');
-      return;
-    }
-    
-    try {
-      setActionWithTimeout('Ticking...');
-      await apiClient.tick(createIdentityBlobs);
-      
-      
-      setActionWithTimeout('Time advanced!');
-    } catch (err) {
-      console.error('Tick error:', err);
-      setActionWithTimeout('Failed to tick');
-    }
-  };
 
   // API-enabled clean function
   const handleClean = async () => {
@@ -431,47 +413,46 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     loadTamagotchi();
   }, []); // Empty dependency array - only runs once on mount
 
-  // Initialize new Tamagotchi when username is set in tutorial
-  useEffect(() => {
-    const createTamagotchi = async () => {
-      if (useAPI && identity && tamagotchiUsername && !hasExistingTamagotchi) {
+  // Store username when set in tutorial, but don't create Tamagotchi yet
+  // The actual creation will happen when tutorial completes
+  
+  // Handle tutorial completion with API init
+  const handleTutorialComplete = async () => {
+    if (useAPI && identity && tamagotchiUsername && !hasExistingTamagotchi) {
+      try {
+        console.log('Tutorial completed, creating new Tamagotchi with name:', tamagotchiUsername);
+        console.log('createIdentityBlobs function:', createIdentityBlobs);
+        console.log('typeof createIdentityBlobs:', typeof createIdentityBlobs);
         
-        try {
-          console.log('Creating new Tamagotchi with name:', tamagotchiUsername);
-          console.log('createIdentityBlobs function:', createIdentityBlobs);
-          console.log('typeof createIdentityBlobs:', typeof createIdentityBlobs);
-          
-          if (!createIdentityBlobs) {
-            throw new Error('createIdentityBlobs is not provided');
-          }
-          
-          const apiGotchi = await apiClient.init(tamagotchiUsername, createIdentityBlobs);
-          console.log('Successfully created Tamagotchi:', apiGotchi);
-          
-          // Update stats from API response
-          const gameStats = apiResponseToGameState(apiGotchi);
-          setHappiness(gameStats.happiness);
-          setHunger(gameStats.hunger);
-          updatePooState(apiGotchi);
-          updateBornAt(apiGotchi);
-        updateBornAt(apiGotchi);
-      updateBornAt(apiGotchi);
-          
-          // Don't map server pet stats to food/health balances - they come from indexer
-          
-          setIsInitialized(true);
-          setHasExistingTamagotchi(true);
-        } catch (err: any) {
-          console.error('Init error:', err);
+        if (!createIdentityBlobs) {
+          throw new Error('createIdentityBlobs is not provided');
         }
+        
+        const apiGotchi = await apiClient.init(tamagotchiUsername, createIdentityBlobs);
+        console.log('Successfully created Tamagotchi:', apiGotchi);
+        
+        // Update stats from API response
+        const gameStats = apiResponseToGameState(apiGotchi);
+        setHappiness(gameStats.happiness);
+        setHunger(gameStats.hunger);
+        updatePooState(apiGotchi);
+        updateBornAt(apiGotchi);
+        
+        // Don't map server pet stats to food/health balances - they come from indexer
+        
+        setIsInitialized(true);
+        setHasExistingTamagotchi(true);
+      } catch (err: any) {
+        console.error('Init error:', err);
+        setShowInitPending(true);
       }
-    };
-    
-    // Only create if we have a username but no existing Tamagotchi
-    if (tamagotchiUsername && !hasExistingTamagotchi) {
-      createTamagotchi();
     }
-  }, [useAPI, identity, tamagotchiUsername, hasExistingTamagotchi, setHappiness, setHunger]);
+    
+    // Call the parent's onTutorialComplete if provided
+    if (onTutorialComplete) {
+      onTutorialComplete();
+    }
+  };
 
   // Periodic sync with server
   useEffect(() => {
@@ -587,7 +568,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     if (showTutorial && useAPI && identity && !hasExistingTamagotchi) {
       return <TutorialScreen 
         ref={tutorialRef} 
-        onCompleteTutorial={onTutorialComplete || (() => {})} 
+        onCompleteTutorial={handleTutorialComplete} 
         username={tamagotchiUsername} 
         setUsername={setUsername}
         onStepChange={setTutorialStep}
@@ -685,32 +666,6 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
         ×
       </button>
       
-      {/* Tick Button - Only show when API is enabled */}
-      {useAPI && identity && (
-        <button
-          onClick={handleTick}
-          style={{
-            position: 'absolute',
-            top: 20,
-            right: 70,
-            background: 'rgba(0,0,0,0.5)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '8px 16px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            zIndex: 10001,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontFamily: "'Press Start 2P', monospace",
-          }}
-          title="Advance time (debug)"
-        >
-          ⏰ TICK
-        </button>
-      )}
       
       {/* Share to X Button */}
       <button
