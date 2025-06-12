@@ -71,7 +71,7 @@ impl Module for AppModule {
             .route("/api/feed/sweets", post(feed_sweets))
             .route("/api/feed/vitamins", post(feed_vitamins))
             .route("/api/config", get(get_config))
-            .route("/api/tick/:secret", post(trigger_tick))
+            .route("/api/tick/{secret}", post(trigger_tick))
             .with_state(state)
             .layer(cors); // Appliquer le middleware CORS
 
