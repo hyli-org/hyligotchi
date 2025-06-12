@@ -24,6 +24,17 @@ import { WalletProvider } from '../contexts/WalletContext';
 import TransactionNotification from './ui/TransactionNotification';
 // Import default assets
 import defaultDeviceImage from '../assets/hyligotchi-orange.png';
+import defaultDeviceImageL from '../assets/hyligotchi-orange-left.png';
+import defaultDeviceImageM from '../assets/hyligotchi-orange-middle.png';
+import defaultDeviceImageR from '../assets/hyligotchi-orange-right.png';
+
+// Preload gotchi images
+const imgL=new Image();
+imgL.src=defaultDeviceImageL;
+const imgM=new Image();
+imgM.src=defaultDeviceImageM;
+const imgR=new Image();
+imgR.src=defaultDeviceImageR;
 
 interface FullTamagotchiProps {
   onClose: () => void;
@@ -68,6 +79,23 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
   const imgRef = useRef<HTMLImageElement>(null);
   const tutorialRef = useRef<TutorialScreenRef>(null);
   
+  const [clickedButton, setClickedButton] = useState<string | null>(null);
+  const [actualImage, setActualImage] = useState<string>(deviceImage);
+  // When a button is clicked, change the image source for a couple hundred milliseconds
+  useEffect(() => {
+    if (clickedButton) {
+      const newSrc = deviceImage.replace('.png', `-${clickedButton}.png`);
+      setActualImage(newSrc);
+      
+      const timeoutId = setTimeout(() => {
+        setActualImage(deviceImage); // Reset to original image
+        setClickedButton(null); // Clear clicked button state
+      }, 200); // Change back after 200ms
+      
+      return () => clearTimeout(timeoutId); // Cleanup on unmount or re-render
+    }
+  }, [clickedButton, actualImage]);
+
   // API state management
   const [isInitialized, setIsInitialized] = useState(false);
   const [hasExistingTamagotchi, setHasExistingTamagotchi] = useState(false);
@@ -924,10 +952,12 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       }}>
         <img
           ref={imgRef}
-          src={deviceImage}
+          src={`${deviceImage.replace('.png', '-trans.png')}`}
           alt="Hyligotchi Full View"
           draggable={false}
           style={{
+            backgroundImage: `url(${actualImage})`,
+            backgroundSize: 'contain',
             maxWidth: '100%',
             maxHeight: 'calc(100vh - 40px)',
             objectFit: 'contain',
@@ -957,7 +987,10 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           naturalZoneY={DEVICE_CONFIG.buttons.left.y}
           naturalZoneWidth={DEVICE_CONFIG.buttons.left.width}
           naturalZoneHeight={DEVICE_CONFIG.buttons.left.height}
-          onClick={!isWalletConnected ? () => {} : showInitPending ? () => { setShowInitPending(false); setIsInitialized(false); } : showTutorial ? () => tutorialRef.current?.handleLeftButton() : menuActions.handleZoneClick}
+          onClick={() => {
+            setClickedButton('left');
+            return !isWalletConnected ? () => {} : showInitPending ? () => { setShowInitPending(false); setIsInitialized(false); } : showTutorial ? () => tutorialRef.current?.handleLeftButton() : menuActions.handleZoneClick
+          }}
         />
         <ClickableZoneOverlay
           imgRef={imgRef}
@@ -965,9 +998,12 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           naturalZoneY={DEVICE_CONFIG.buttons.middle.y}
           naturalZoneWidth={DEVICE_CONFIG.buttons.middle.width}
           naturalZoneHeight={DEVICE_CONFIG.buttons.middle.height}
-          onClick={!isWalletConnected ? (onConnectWallet || (() => {})) : showInitPending ? () => { setShowInitPending(false); setIsInitialized(false); } : showTutorial ? () => tutorialRef.current?.handleMiddleButton() : (health === 'Dead' || health === 'dead') ? handleResurrect : () => {
-            console.log('Middle button clicked!');
-            menuActions.handleZone2Click();
+          onClick={() => {
+            setClickedButton('middle');
+            return !isWalletConnected ? (onConnectWallet || (() => {})) : showInitPending ? () => { setShowInitPending(false); setIsInitialized(false); } : showTutorial ? () => tutorialRef.current?.handleMiddleButton() : (health === 'Dead' || health === 'dead') ? handleResurrect : () => {
+              console.log('Middle button clicked!');
+              menuActions.handleZone2Click();
+            }
           }}
           backgroundColor="rgba(0, 255, 0, 0.5)"
         />
@@ -977,7 +1013,10 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           naturalZoneY={DEVICE_CONFIG.buttons.right.y}
           naturalZoneWidth={DEVICE_CONFIG.buttons.right.width}
           naturalZoneHeight={DEVICE_CONFIG.buttons.right.height}
-          onClick={!isWalletConnected ? () => {} : showInitPending ? () => { setShowInitPending(false); setIsInitialized(false); } : showTutorial ? () => tutorialRef.current?.handleRightButton() : menuActions.handleZone3Click}
+          onClick={() => {
+            setClickedButton('right');
+            return !isWalletConnected ? () => {} : showInitPending ? () => { setShowInitPending(false); setIsInitialized(false); } : showTutorial ? () => tutorialRef.current?.handleRightButton() : menuActions.handleZone3Click
+          }}
           backgroundColor="rgba(0, 0, 255, 0.5)"
         />
       </div>
