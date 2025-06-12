@@ -249,9 +249,9 @@ checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
 
 [[package]]
 name = "assertables"
-version = "9.6.0"
+version = "9.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72129447ae3f06776127f6f88ad9da1f3ad936a20935ea84cc63ef24fdf95b17"
+checksum = "5c775ce207e5c3131cd1ced711448f31bae2ae71fe2b9becb0090470b09f9035"
 
 [[package]]
 name = "async-stream"
@@ -1826,7 +1826,7 @@ checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 [[package]]
 name = "hyle-client-sdk"
 version = "0.13.0-rc.4"
-source = "git+https://github.com/hyle-org/hyle?branch=main#b034dce58d330de87bdbacd59cb8df33947ed45c"
+source = "git+https://github.com/hyle-org/hyle?branch=main#50704db8a1e11aa16b292b57f79bed92ad27ef46"
 dependencies = [
  "anyhow",
  "axum 0.8.4",
@@ -1846,7 +1846,7 @@ dependencies = [
 [[package]]
 name = "hyle-contract-sdk"
 version = "0.13.0-rc.4"
-source = "git+https://github.com/hyle-org/hyle?branch=main#b034dce58d330de87bdbacd59cb8df33947ed45c"
+source = "git+https://github.com/hyle-org/hyle?branch=main#50704db8a1e11aa16b292b57f79bed92ad27ef46"
 dependencies = [
  "borsh",
  "hyle-model",
@@ -1860,7 +1860,7 @@ dependencies = [
 [[package]]
 name = "hyle-crypto"
 version = "0.13.0-rc.4"
-source = "git+https://github.com/hyle-org/hyle?branch=main#b034dce58d330de87bdbacd59cb8df33947ed45c"
+source = "git+https://github.com/hyle-org/hyle?branch=main#50704db8a1e11aa16b292b57f79bed92ad27ef46"
 dependencies = [
  "anyhow",
  "blst",
@@ -1873,7 +1873,7 @@ dependencies = [
 [[package]]
 name = "hyle-hyllar"
 version = "0.13.0-rc.4"
-source = "git+https://github.com/hyle-org/hyle?branch=main#b034dce58d330de87bdbacd59cb8df33947ed45c"
+source = "git+https://github.com/hyle-org/hyle?branch=main#50704db8a1e11aa16b292b57f79bed92ad27ef46"
 dependencies = [
  "anyhow",
  "borsh",
@@ -1886,7 +1886,7 @@ dependencies = [
 [[package]]
 name = "hyle-model"
 version = "0.13.0-rc.4"
-source = "git+https://github.com/hyle-org/hyle?branch=main#b034dce58d330de87bdbacd59cb8df33947ed45c"
+source = "git+https://github.com/hyle-org/hyle?branch=main#50704db8a1e11aa16b292b57f79bed92ad27ef46"
 dependencies = [
  "anyhow",
  "base64",
@@ -1909,7 +1909,7 @@ dependencies = [
 [[package]]
 name = "hyle-modules"
 version = "0.13.0-rc.4"
-source = "git+https://github.com/hyle-org/hyle?branch=main#b034dce58d330de87bdbacd59cb8df33947ed45c"
+source = "git+https://github.com/hyle-org/hyle?branch=main#50704db8a1e11aa16b292b57f79bed92ad27ef46"
 dependencies = [
  "anyhow",
  "anymap",
@@ -1921,6 +1921,7 @@ dependencies = [
  "hyle-contract-sdk",
  "hyle-net",
  "hyle-verifiers",
+ "indexmap 2.9.0",
  "opentelemetry",
  "paste",
  "prometheus",
@@ -1943,7 +1944,7 @@ dependencies = [
 [[package]]
 name = "hyle-net"
 version = "0.13.0-rc.4"
-source = "git+https://github.com/hyle-org/hyle?branch=main#b034dce58d330de87bdbacd59cb8df33947ed45c"
+source = "git+https://github.com/hyle-org/hyle?branch=main#50704db8a1e11aa16b292b57f79bed92ad27ef46"
 dependencies = [
  "anyhow",
  "axum 0.8.4",
@@ -1969,7 +1970,7 @@ dependencies = [
 [[package]]
 name = "hyle-verifiers"
 version = "0.13.0-rc.4"
-source = "git+https://github.com/hyle-org/hyle?branch=main#b034dce58d330de87bdbacd59cb8df33947ed45c"
+source = "git+https://github.com/hyle-org/hyle?branch=main#50704db8a1e11aa16b292b57f79bed92ad27ef46"
 dependencies = [
  "anyhow",
  "borsh",
@@ -2429,7 +2430,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07033963ba89ebaf1584d767badaa2e8fcec21aedea6b8c0346d487d49c28667"
 dependencies = [
  "cfg-if",
- "windows-targets 0.53.0",
+ "windows-targets 0.53.1",
 ]
 
 [[package]]
@@ -2857,6 +2858,39 @@ dependencies = [
  "futures-sink",
  "js-sys",
  "pin-project-lite",
+ "thiserror 2.0.12",
+ "tracing",
+]
+
+[[package]]
+name = "opentelemetry-prometheus"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "765a76ba13ec77043903322f85dc5434d7d01a37e75536d0f871ed7b9b5bbf0d"
+dependencies = [
+ "once_cell",
+ "opentelemetry",
+ "opentelemetry_sdk",
+ "prometheus",
+ "protobuf",
+ "tracing",
+]
+
+[[package]]
+name = "opentelemetry_sdk"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "84dfad6042089c7fc1f6118b7040dc2eb4ab520abbf410b79dc481032af39570"
+dependencies = [
+ "async-trait",
+ "futures-channel",
+ "futures-executor",
+ "futures-util",
+ "glob",
+ "opentelemetry",
+ "percent-encoding",
+ "rand 0.8.5",
+ "serde_json",
  "thiserror 2.0.12",
  "tracing",
 ]
@@ -4253,6 +4287,8 @@ dependencies = [
  "hyle-modules",
  "hyligotchi",
  "opentelemetry",
+ "opentelemetry-prometheus",
+ "opentelemetry_sdk",
  "prometheus",
  "rand 0.9.1",
  "reqwest",
@@ -5969,9 +6005,9 @@ dependencies = [
 
 [[package]]
 name = "windows-link"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76840935b766e1b0a05c0066835fb9ec80071d4c09a16f6bd5f7e655e3c14c38"
+checksum = "d3bfe459f85da17560875b8bf1423d6f113b7a87a5d942e7da0ac71be7c61f8b"
 
 [[package]]
 name = "windows-registry"
@@ -6062,9 +6098,9 @@ dependencies = [
 
 [[package]]
 name = "windows-targets"
-version = "0.53.0"
+version = "0.53.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1e4c7e8ceaaf9cb7d7507c974735728ab453b67ef8f18febdd7c11fe59dca8b"
+checksum = "30357ec391cde730f8fbfcdc29adc47518b06504528df977ab5af02ef23fdee9"
 dependencies = [
  "windows_aarch64_gnullvm 0.53.0",
  "windows_aarch64_msvc 0.53.0",

@@ -116,6 +116,21 @@ async fn main() -> Result<()> {
         public_key,
     };
 
+    // To setup before autoprover module
+
+    let registry = Registry::new();
+    // Init global metrics meter we expose as an endpoint
+    let provider = opentelemetry_sdk::metrics::SdkMeterProvider::builder()
+        .with_reader(
+            opentelemetry_prometheus::exporter()
+                .with_registry(registry.clone())
+                .build()
+                .context("starting prometheus exporter")?,
+        )
+        .build();
+
+    opentelemetry::global::set_meter_provider(provider.clone());
+
     let app_ctx = Arc::new(AppModuleCtx {
         api: build_api_ctx.clone(),
         node_client,
@@ -175,7 +190,7 @@ async fn main() -> Result<()> {
         .build_module::<RestApi>(RestApiRunContext {
             port: config.rest_server_port,
             max_body_size: config.rest_server_max_body_size,
-            registry: Registry::new(),
+            registry,
             router,
             openapi,
             info: NodeInfo {

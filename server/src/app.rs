@@ -102,7 +102,7 @@ pub struct CryptoContext {
 }
 
 #[derive(Clone)]
-struct RouterCtx {
+pub struct RouterCtx {
     pub app: Arc<Mutex<HyleOofCtx>>,
     pub client: Arc<NodeApiHttpClient>,
     pub indexer_client: Arc<IndexerApiHttpClient>,

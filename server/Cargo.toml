@@ -37,3 +37,5 @@ secp256k1 = { version = "0.31.0" }
 opentelemetry = { version = "0.28" }
 prometheus = { version = "0.13.4" }
 futures = "0.3.31"
+opentelemetry_sdk = "0.28.0"
+opentelemetry-prometheus = "0.28.0"
