@@ -78,4 +78,11 @@ const CleaningAnimation: React.FC<CleaningAnimationProps> = ({
   );
 };
 
-export default CleaningAnimation; 
+// Memoize the component since it's a pure presentational component
+export default React.memo(CleaningAnimation, (prevProps, nextProps) => {
+  return (
+    prevProps.isPlaying === nextProps.isPlaying &&
+    prevProps.position?.x === nextProps.position?.x &&
+    prevProps.position?.y === nextProps.position?.y
+  );
+}); 

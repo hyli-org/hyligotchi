@@ -23,4 +23,5 @@ const CleanIcon: React.FC = () => (
   </svg>
 );
 
-export default CleanIcon; 
+// Memoize since this is a static icon with no props
+export default React.memo(CleanIcon); 

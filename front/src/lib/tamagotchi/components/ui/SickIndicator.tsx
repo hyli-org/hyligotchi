@@ -42,4 +42,11 @@ const SickIndicator: React.FC<SickIndicatorProps> = ({
   );
 };
 
-export default SickIndicator;
+// Memoize the component since it's a pure presentational component
+export default React.memo(SickIndicator, (prevProps, nextProps) => {
+  return (
+    prevProps.visible === nextProps.visible &&
+    prevProps.position?.x === nextProps.position?.x &&
+    prevProps.position?.y === nextProps.position?.y
+  );
+});

@@ -42,4 +42,11 @@ const PooIndicator: React.FC<PooIndicatorProps> = ({
   );
 };
 
-export default PooIndicator; 
+// Memoize the component since it's a pure presentational component
+export default React.memo(PooIndicator, (prevProps, nextProps) => {
+  return (
+    prevProps.visible === nextProps.visible &&
+    prevProps.position?.x === nextProps.position?.x &&
+    prevProps.position?.y === nextProps.position?.y
+  );
+}); 

@@ -185,4 +185,12 @@ const StatsMenuScreen: React.FC<StatsMenuScreenProps> = ({ hunger, happiness, us
   );
 };
 
-export default StatsMenuScreen; 
+// Memoize the component to prevent unnecessary re-renders
+export default React.memo(StatsMenuScreen, (prevProps, nextProps) => {
+  return (
+    prevProps.hunger === nextProps.hunger &&
+    prevProps.happiness === nextProps.happiness &&
+    prevProps.username === nextProps.username &&
+    prevProps.bornAt === nextProps.bornAt
+  );
+}); 

@@ -17,4 +17,5 @@ const CasinoIcon: React.FC = () => (
   />
 );
 
-export default CasinoIcon; 
+// Memoize since this is a static icon with no props
+export default React.memo(CasinoIcon); 

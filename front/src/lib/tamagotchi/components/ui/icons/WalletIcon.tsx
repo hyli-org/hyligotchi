@@ -22,4 +22,5 @@ const WalletIcon: React.FC<WalletIconProps> = ({
   </svg>
 );
 
-export default WalletIcon;
+// Memoize since this is a static icon with default props
+export default React.memo(WalletIcon);

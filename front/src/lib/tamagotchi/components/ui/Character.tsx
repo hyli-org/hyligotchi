@@ -1,5 +1,6 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { DEVICE_CONFIG } from '../../config/deviceConfig';
+import { useAnimationFrame } from '../../hooks/useAnimationFrame';
 
 interface CharacterProps {
   x: number;
@@ -8,66 +9,47 @@ interface CharacterProps {
   happiness: number;
 }
 
-const Character: React.FC<CharacterProps> = ({ x, y, isBlinking, happiness }) => {
-  // Create a ref to store previous position for direction detection
-  const prevPositionRef = useRef({ x, y });
+const CharacterComponent: React.FC<CharacterProps> = ({ x, isBlinking, happiness }) => {
   
   // Add state for walking animation
   const [currentDisplayX, setCurrentDisplayX] = useState(x);
-  const walkingAnimationRef = useRef<NodeJS.Timeout | null>(null);
+  const isWalkingRef = useRef(false);
+  const walkingProgressRef = useRef(0);
+  const startXRef = useRef(x);
+  const targetXRef = useRef(x);
   
-  // Walking animation logic
+  // Update target when x changes
   useEffect(() => {
-    // Clear any existing walking animation
-    if (walkingAnimationRef.current) {
-      clearTimeout(walkingAnimationRef.current);
+    if (x !== targetXRef.current) {
+      startXRef.current = currentDisplayX;
+      targetXRef.current = x;
+      walkingProgressRef.current = 0;
+      isWalkingRef.current = true;
     }
-    
-    // If target position is different from current display position, start walking
-    if (x !== currentDisplayX) {
-      const startX = currentDisplayX;
-      const targetX = x;
-      const distance = Math.abs(targetX - startX);
-      const stepSize = 2; // Size of each step
-      const stepDuration = 250; // Duration between steps in ms - increased from 100 to 250
-      
-      // Calculate number of steps needed
-      const numSteps = Math.ceil(distance / stepSize);
-      let currentStep = 0;
-      
-      const walkStep = () => {
-        currentStep++;
-        
-        if (currentStep >= numSteps) {
-          // Final step - ensure we reach exact target
-          setCurrentDisplayX(targetX);
-        } else {
-          // Intermediate step
-          const direction = targetX > startX ? 1 : -1;
-          const newX = startX + (direction * stepSize * currentStep);
-          // Make sure we don't overshoot
-          const clampedX = direction === 1 ? Math.min(newX, targetX) : Math.max(newX, targetX);
-          setCurrentDisplayX(clampedX);
-          
-          // Schedule next step
-          walkingAnimationRef.current = setTimeout(walkStep, stepDuration);
-        }
-      };
-      
-      // Start the walking animation
-      walkingAnimationRef.current = setTimeout(walkStep, stepDuration);
-    }
-    
-    // Update previous position reference (only x matters now)
-    prevPositionRef.current = { x, y: prevPositionRef.current.y };
-    
-    // Cleanup walking animation on unmount
-    return () => {
-      if (walkingAnimationRef.current) {
-        clearTimeout(walkingAnimationRef.current);
-      }
-    };
   }, [x, currentDisplayX]);
+  
+  // Walking animation using RAF
+  const animateWalking = useCallback((deltaTime?: number) => {
+    if (!isWalkingRef.current) return;
+    
+    const walkSpeed = 0.02; // Speed multiplier for walking animation
+    const dt = deltaTime || 16; // Default to 16ms if not provided
+    walkingProgressRef.current += dt * walkSpeed;
+    
+    if (walkingProgressRef.current >= 1) {
+      // Animation complete
+      setCurrentDisplayX(targetXRef.current);
+      isWalkingRef.current = false;
+      walkingProgressRef.current = 0;
+    } else {
+      // Interpolate position
+      const newX = startXRef.current + (targetXRef.current - startXRef.current) * walkingProgressRef.current;
+      setCurrentDisplayX(newX);
+    }
+  }, []);
+  
+  // Use RAF for smooth animation
+  useAnimationFrame(animateWalking);
 
   return (
     <div style={{
@@ -149,5 +131,15 @@ const Character: React.FC<CharacterProps> = ({ x, y, isBlinking, happiness }) =>
     </div>
   );
 };
+
+// Memoize the component with custom comparison
+const Character = React.memo(CharacterComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.x === nextProps.x &&
+    prevProps.y === nextProps.y &&
+    prevProps.isBlinking === nextProps.isBlinking &&
+    prevProps.happiness === nextProps.happiness
+  );
+});
 
 export default Character; 

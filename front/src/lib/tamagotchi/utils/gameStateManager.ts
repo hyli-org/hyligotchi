@@ -114,7 +114,27 @@ export const prepareForServerSync = (state: GameState): ServerGameState => {
 };
 
 // Convert API response to game state updates
-export const apiResponseToGameState = (apiGotchi: ApiGotchi): { happiness: number; hunger: number; health: number } => {
+export const apiResponseToGameState = (apiGotchi: ApiGotchi | null): {
+  happiness: number;
+  hunger: number;
+  health: number;
+  username?: string;
+  born_at?: number;
+  needs_cleaning: boolean;
+  exists: boolean;
+  is_dead: boolean;
+} => {
+  if (!apiGotchi) {
+    return {
+      happiness: 0,
+      hunger: 0,
+      health: 0,
+      needs_cleaning: false,
+      exists: false,
+      is_dead: false
+    };
+  }
+  
   // Map server stats to game stats
   // Server tracks: activity, food, sweets, vitamins (all out of 10)
   // Frontend tracks: happiness, hunger, health
@@ -123,10 +143,19 @@ export const apiResponseToGameState = (apiGotchi: ApiGotchi): { happiness: numbe
   const hunger = Math.min(10, Math.max(0, apiGotchi.food)); // Direct mapping, higher food = higher hunger value
   const health = Math.min(10, Math.max(0, apiGotchi.vitamins));
   
+  // Check if the pet is dead based on health status
+  const healthStatus = parseHealthStatus(apiGotchi.health);
+  const is_dead = healthStatus === 'Dead';
+  
   return {
     happiness,
     hunger,
-    health
+    health,
+    username: apiGotchi.name,
+    born_at: apiGotchi.born_at,
+    needs_cleaning: apiGotchi.pooped || false,
+    exists: true,
+    is_dead
   };
 };
 

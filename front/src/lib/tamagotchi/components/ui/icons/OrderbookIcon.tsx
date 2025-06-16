@@ -17,4 +17,5 @@ const OrderbookIcon: React.FC = () => (
   />
 );
 
-export default OrderbookIcon; 
+// Memoize since this is a static icon with no props
+export default React.memo(OrderbookIcon); 

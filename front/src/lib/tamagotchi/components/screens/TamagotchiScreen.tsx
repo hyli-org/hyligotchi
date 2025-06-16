@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import Character from '../ui/Character';
 import PooIndicator from '../ui/PooIndicator';
 import SickIndicator from '../ui/SickIndicator';
@@ -24,7 +24,7 @@ interface TamagotchiScreenProps {
   isCleaningAnimationPlaying: boolean;
 }
 
-const TamagotchiScreen: React.FC<TamagotchiScreenProps> = ({
+const TamagotchiScreenComponent: React.FC<TamagotchiScreenProps> = ({
   characterPosition,
   isBlinking,
   happiness,
@@ -34,6 +34,16 @@ const TamagotchiScreen: React.FC<TamagotchiScreenProps> = ({
   showPoo,
   isCleaningAnimationPlaying
 }) => {
+  // Memoize icon opacity calculations
+  const iconOpacities = useMemo(() => ({
+    food: selectedAction === null ? 0.25 : (selectedAction === "food" ? 1 : 0.25),
+    health: selectedAction === null ? 0.25 : (selectedAction === "health_status" ? 1 : 0.25),
+    clean: selectedAction === null ? 0.25 : (selectedAction === "clean" ? 1 : 0.25),
+    stats: selectedAction === null ? 0.25 : (selectedAction === "stats" ? 1 : 0.25),
+    casino: selectedAction === null ? 0.25 : (selectedAction === "light" ? 1 : 0.25),
+    orderbook: selectedAction === null ? 0.25 : (selectedAction === "orderbook" ? 1 : 0.25),
+    orangeNinja: selectedAction === null ? 0.25 : (selectedAction === "orange_ninja" ? 1 : 0.25)
+  }), [selectedAction]);
   return (
     <div style={{
       width: '100%',
@@ -64,7 +74,7 @@ const TamagotchiScreen: React.FC<TamagotchiScreenProps> = ({
           <div style={{
             width: '100%', height: '100%',
             display: 'flex', justifyContent: 'center', alignItems: 'center',
-            opacity: selectedAction === null ? 0.25 : (selectedAction === "food" ? 1 : 0.25)
+            opacity: iconOpacities.food
           }}>
             <FoodIcon />
           </div>
@@ -79,7 +89,7 @@ const TamagotchiScreen: React.FC<TamagotchiScreenProps> = ({
           <div style={{
             width: '100%', height: '100%',
             display: 'flex', justifyContent: 'center', alignItems: 'center',
-            opacity: selectedAction === null ? 0.25 : (selectedAction === "health_status" ? 1 : 0.25)
+            opacity: iconOpacities.health
           }}>
             <HealthIcon />
           </div>
@@ -94,7 +104,7 @@ const TamagotchiScreen: React.FC<TamagotchiScreenProps> = ({
           <div style={{
             width: '100%', height: '100%',
             display: 'flex', justifyContent: 'center', alignItems: 'center',
-            opacity: selectedAction === null ? 0.25 : (selectedAction === "clean" ? 1 : 0.25)
+            opacity: iconOpacities.clean
           }}>
             <CleanIcon />
           </div>
@@ -110,7 +120,7 @@ const TamagotchiScreen: React.FC<TamagotchiScreenProps> = ({
           <div style={{
             width: '100%', height: '100%',
             display: 'flex', justifyContent: 'center', alignItems: 'center',
-            opacity: selectedAction === null ? 0.25 : (selectedAction === "stats" ? 1 : 0.25)
+            opacity: iconOpacities.stats
           }}>
             <StatsIcon />
           </div>
@@ -195,7 +205,7 @@ const TamagotchiScreen: React.FC<TamagotchiScreenProps> = ({
           <div style={{
             width: '100%', height: '100%',
             display: 'flex', justifyContent: 'center', alignItems: 'center',
-            opacity: selectedAction === null ? 0.25 : (selectedAction === "light" ? 1 : 0.25)
+            opacity: iconOpacities.casino
           }}>
             <CasinoIcon />
           </div>
@@ -210,7 +220,7 @@ const TamagotchiScreen: React.FC<TamagotchiScreenProps> = ({
           <div style={{
             width: '100%', height: '100%',
             display: 'flex', justifyContent: 'center', alignItems: 'center',
-            opacity: selectedAction === null ? 0.25 : (selectedAction === "orderbook" ? 1 : 0.25)
+            opacity: iconOpacities.orderbook
           }}>
             <OrderbookIcon />
           </div>
@@ -225,7 +235,7 @@ const TamagotchiScreen: React.FC<TamagotchiScreenProps> = ({
           <div style={{
             width: '90%', height: '90%',
             display: 'flex', justifyContent: 'center', alignItems: 'center',
-            opacity: selectedAction === null ? 0.25 : (selectedAction === "orange_ninja" ? 1 : 0.25)
+            opacity: iconOpacities.orangeNinja
           }}>
             <OrangeNinjaIcon />
           </div>
@@ -234,5 +244,20 @@ const TamagotchiScreen: React.FC<TamagotchiScreenProps> = ({
     </div>
   );
 };
+
+// Memoize the component with custom comparison
+const TamagotchiScreen = React.memo(TamagotchiScreenComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.characterPosition.x === nextProps.characterPosition.x &&
+    prevProps.characterPosition.y === nextProps.characterPosition.y &&
+    prevProps.isBlinking === nextProps.isBlinking &&
+    prevProps.happiness === nextProps.happiness &&
+    prevProps.healthStatus === nextProps.healthStatus &&
+    prevProps.lastAction === nextProps.lastAction &&
+    prevProps.selectedAction === nextProps.selectedAction &&
+    prevProps.showPoo === nextProps.showPoo &&
+    prevProps.isCleaningAnimationPlaying === nextProps.isCleaningAnimationPlaying
+  );
+});
 
 export default TamagotchiScreen; 

@@ -22,4 +22,5 @@ const FoodIcon: React.FC = () => (
   </svg>
 );
 
-export default FoodIcon; 
+// Memoize since this is a static icon with no props
+export default React.memo(FoodIcon); 

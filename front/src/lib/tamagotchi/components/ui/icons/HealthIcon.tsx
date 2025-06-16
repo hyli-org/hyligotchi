@@ -22,4 +22,5 @@ const HealthIcon: React.FC = () => (
   </svg>
 );
 
-export default HealthIcon; 
+// Memoize since this is a static icon with no props
+export default React.memo(HealthIcon); 

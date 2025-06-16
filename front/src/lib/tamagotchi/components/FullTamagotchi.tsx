@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import FoodMenuScreen from './menus/FoodMenuScreen';
 import HealthMenuScreen from './menus/HealthMenuScreen';
 import CasinoMenuScreen from './menus/CasinoMenuScreen';
@@ -18,8 +18,10 @@ import { useTamagotchiState } from '../hooks/useTamagotchiState';
 import { useMenuState } from '../hooks/useMenuState';
 import { useFoodBalances } from '../hooks/useFoodBalances';
 import { useHealthBalances } from '../hooks/useHealthBalances';
+import { useApiSync } from '../hooks/useApiSync';
+import { useApiActions } from '../hooks/useApiActions';
 import { apiClient } from '../api/client';
-import { apiResponseToGameState, parseHealthStatus } from '../utils/gameStateManager';
+import { apiResponseToGameState } from '../utils/gameStateManager';
 import { WalletProvider } from '../contexts/WalletContext';
 // Import default assets
 import defaultDeviceImage from '../assets/hyligotchi-orange.png';
@@ -67,27 +69,31 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
   const imgRef = useRef<HTMLImageElement>(null);
   const tutorialRef = useRef<TutorialScreenRef>(null);
   
-  // API state management
-  const [isInitialized, setIsInitialized] = useState(false);
-  const [hasExistingTamagotchi, setHasExistingTamagotchi] = useState(false);
+  // State for initialization
   const [showInitPending, setShowInitPending] = useState(false);
   
   // Use food balances hook with API and identity
-  const { balances: foodBalances, consumeFood } = useFoodBalances(useAPI, identity, indexerUrl);
+  const { balances: foodBalances, hasFood } = useFoodBalances(useAPI, identity, indexerUrl);
   
   // Use health balances hook with API and identity
-  const { balances: healthBalances, consumeHealth } = useHealthBalances(useAPI, identity, indexerUrl);
-
-  // Set up API client with identity and URL
-  useEffect(() => {
-    if (useAPI && identity) {
-      console.log('Setting API client identity:', identity);
-      apiClient.setIdentity(identity);
-      if (apiUrl) {
-        apiClient.setBaseUrl(apiUrl);
-      }
+  const { balances: healthBalances, hasHealth } = useHealthBalances(useAPI, identity, indexerUrl);
+  
+  // Wrapper functions to convert between API types and what useApiActions expects
+  const consumeFoodWrapper = useCallback((food: string): boolean => {
+    if (food === 'orange' && hasFood('ORANJ')) {
+      return true;
+    } else if (food === 'sweets' && hasFood('OXYGEN')) {
+      return true;
     }
-  }, [identity, useAPI, apiUrl]);
+    return false;
+  }, [hasFood]);
+  
+  const consumeHealthWrapper = useCallback((item: string): boolean => {
+    if ((item === 'vaccine' || item === 'medicine') && hasHealth('VITAMIN')) {
+      return true;
+    }
+    return false;
+  }, [hasHealth]);
 
   // Use custom hooks for state management (without tutorial state)
   const {
@@ -110,7 +116,6 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     setUsername,
     bornAt,
     setBornAt,
-    handleClean: localHandleClean,
     setActionWithTimeout
   } = useTamagotchiState();
   
@@ -118,196 +123,81 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
   const [tutorialStep, setTutorialStep] = useState(0);
 
   // Helper function to update poo state from API response
-  const updatePooState = (apiGotchi: any) => {
-    if (apiGotchi.pooped !== undefined) {
-      console.log('Updating poo state from API:', apiGotchi.pooped);
-      setShowPoo(apiGotchi.pooped);
-      setNeedsCleaning(apiGotchi.pooped);
+  const updatePooState = useCallback((value: boolean | ((prev: boolean) => boolean)) => {
+    if (typeof value === 'boolean') {
+      console.log('Updating poo state:', value);
+      setShowPoo(value);
+      setNeedsCleaning(value);
+    } else {
+      setShowPoo(value);
+      setNeedsCleaning(value);
     }
-  };
-
-  // Helper function to update born_at from API response
-  const updateBornAt = (apiGotchi: any) => {
-    if (apiGotchi.born_at !== undefined) {
-      console.log('Updating born_at from API:', apiGotchi.born_at);
-      setBornAt(apiGotchi.born_at);
-    }
-  };
-
-
-  // API-enabled clean function
-  const handleClean = async () => {
-    if (!useAPI || !identity) {
-      localHandleClean();
-      return;
-    }
-    
-    try {
-      setActionWithTimeout('Cleaning...');
-      const apiGotchi = await apiClient.cleanPoop(createIdentityBlobs);
-      
-      // Update stats from API response
-      const gameStats = apiResponseToGameState(apiGotchi);
-      setHappiness(gameStats.happiness);
-      setHunger(gameStats.hunger);
-      if (apiGotchi.health) {
-        setHealth(parseHealthStatus(apiGotchi.health));
-      }
-      updatePooState(apiGotchi);
-      updateBornAt(apiGotchi);
-      
-      setActionWithTimeout('Cleaned poo!');
-      
-      // Play cleaning animation if poo was cleaned
-      if (!apiGotchi.pooped && showPoo) {
-        setIsCleaningAnimationPlaying(true);
-        setTimeout(() => {
-          setIsCleaningAnimationPlaying(false);
-        }, 1000);
-      }
-    } catch (err) {
-      console.error('Clean error:', err);
-      setActionWithTimeout('Failed to clean');
-    }
-  };
-
-  // API-enabled feeding functions
-  const handleApiFeed = async (foodType: 'ORANJ' | 'OXYGEN') => {
-    console.log('handleApiFeed called with:', foodType);
-    console.log('API conditions:', { useAPI, identity, isInitialized });
-    
-    if (!useAPI || !identity || !isInitialized) {
-      console.log('API conditions not met, returning false');
-      // Fallback to local-only feeding
-      return false;
-    }
-    
-    try {
-      // Map UI food types to API types
-      const apiType = foodType === 'ORANJ' ? 'food' : 'sweets';
-      console.log('Calling API method:', apiType === 'food' ? 'feedFood' : 'feedSweets');
-      
-      const apiGotchi = await apiClient[apiType === 'food' ? 'feedFood' : 'feedSweets'](1, createIdentityBlobs);
-      console.log('API response:', apiGotchi);
-      
-      // Update stats from API response
-      const gameStats = apiResponseToGameState(apiGotchi);
-      setHappiness(gameStats.happiness);
-      setHunger(gameStats.hunger);
-      if (apiGotchi.health) {
-        setHealth(parseHealthStatus(apiGotchi.health));
-      }
-      updatePooState(apiGotchi);
-      updateBornAt(apiGotchi);
-      
-      // Don't update balances from pet stats - they come from indexer
-      // Trigger a refresh of balances after feeding
-      if (consumeFood) {
-        console.log('Consuming food from balance...');
-        await consumeFood(foodType === 'ORANJ' ? 'ORANJ' : 'OXYGEN', 1);
-      }
-      
-      return true;
-    } catch (err) {
-      console.error('Feed error:', err);
-      return false;
-    }
-  };
+  }, [setShowPoo, setNeedsCleaning]);
   
-  const handleApiHealth = async (healthType: 'VITAMIN') => {
-    if (!useAPI || !identity || !isInitialized) {
-      return false;
-    }
-    
+  // Use API sync hook
+  const {
+    hasExistingTamagotchi,
+    refreshStateFromAPI,
+    setIsInitialized,
+    setHasExistingTamagotchi
+  } = useApiSync({
+    useAPI,
+    identity,
+    apiUrl,
+    setHappiness,
+    setHunger,
+    setHealth,
+    setUsername,
+    setBornAt,
+    updatePooState
+  });
+  
+  // Use API actions hook
+  const {
+    handleClean: apiHandleClean,
+    handleApiFeed,
+    handleApiHealth,
+    handleResurrect
+  } = useApiActions({
+    useAPI,
+    identity,
+    consumeFood: consumeFoodWrapper,
+    consumeHealth: consumeHealthWrapper,
+    refreshStateFromAPI,
+    setActionWithTimeout,
+    showPoo,
+    setShowPoo,
+    setNeedsCleaning,
+    setIsCleaningAnimationPlaying,
+    createIdentityBlobs
+  });
+
+
+
+  // Wrapper functions for menu state that return Promise<boolean>
+  const handleApiFeedWrapper = useCallback(async (foodType: 'ORANJ' | 'OXYGEN'): Promise<boolean> => {
     try {
-      const apiGotchi = await apiClient.feedVitamins(1, createIdentityBlobs);
-      
-      // Update stats from API response
-      const gameStats = apiResponseToGameState(apiGotchi);
-      setHappiness(gameStats.happiness);
-      setHunger(gameStats.hunger);
-      if (apiGotchi.health) {
-        setHealth(parseHealthStatus(apiGotchi.health));
+      if (foodType === 'ORANJ') {
+        await handleApiFeed('orange');
+      } else if (foodType === 'OXYGEN') {
+        await handleApiFeed('sweets');
       }
-      updatePooState(apiGotchi);
-      updateBornAt(apiGotchi);
-      
-      // Don't update balances from pet stats - they come from indexer
-      // Trigger a refresh of balances after using health item
-      if (consumeHealth) {
-        await consumeHealth(healthType, 1);
-      }
-      
-      // After feeding vitamins, re-fetch the state to get updated health
-      setTimeout(async () => {
-        await refreshStateFromAPI();
-      }, 1000);
-      
       return true;
-    } catch (err) {
-      console.error('Health error:', err);
+    } catch (error) {
+      console.error('Feed error:', error);
       return false;
     }
-  };
-
-  // Force refresh state from API
-  const refreshStateFromAPI = async () => {
-    if (!useAPI || !identity || !isInitialized) return;
-    
+  }, [handleApiFeed]);
+  
+  const handleApiHealthWrapper = useCallback(async (_healthType: 'VITAMIN'): Promise<boolean> => {
     try {
-      const apiGotchi = await apiClient.getState();
-      
-      if (apiGotchi) {
-        // Update stats from API response
-        const gameStats = apiResponseToGameState(apiGotchi);
-        setHappiness(gameStats.happiness || happiness);
-        setHunger(gameStats.hunger || hunger);
-        if (apiGotchi.health) {
-          console.log('Setting health status from API:', apiGotchi.health);
-          setHealth(parseHealthStatus(apiGotchi.health));
-        }
-        updatePooState(apiGotchi);
-        updateBornAt(apiGotchi);
-      updateBornAt(apiGotchi);
-        
-        // Don't update balances from pet stats - they come from indexer
-      }
-    } catch (err) {
-      console.error('Failed to refresh state:', err);
+      await handleApiHealth('vaccine');
+      return true;
+    } catch (error) {
+      console.error('Health error:', error);
+      return false;
     }
-  };
-
-  // Handle resurrect
-  const handleResurrect = async () => {
-    if (!useAPI || !identity || !isInitialized) {
-      return;
-    }
-    
-    try {
-      setActionWithTimeout('Resurrecting...');
-      const apiGotchi = await apiClient.resurrect(createIdentityBlobs);
-      
-      // Update stats from API response
-      const gameStats = apiResponseToGameState(apiGotchi);
-      setHappiness(gameStats.happiness);
-      setHunger(gameStats.hunger);
-      if (apiGotchi.health) {
-        setHealth(parseHealthStatus(apiGotchi.health));
-      }
-      updatePooState(apiGotchi);
-      updateBornAt(apiGotchi);
-      
-      setActionWithTimeout('Resurrected!');
-      
-      // Refresh state after a moment
-      setTimeout(async () => {
-        await refreshStateFromAPI();
-      }, 1000);
-    } catch (err) {
-      console.error('Resurrect error:', err);
-      setActionWithTimeout('Failed to resurrect');
-    }
-  };
+  }, [handleApiHealth]);
 
   const [menuState, menuActions] = useMenuState(
     foodBalances,
@@ -315,81 +205,18 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     healthBalances,
     () => {}, // setHealthBalances not needed with hook
     setActionWithTimeout,
-    handleClean,
-    handleApiFeed,
-    handleApiHealth,
+    apiHandleClean,
+    handleApiFeedWrapper,
+    handleApiHealthWrapper,
     refreshStateFromAPI
   );
 
-  // Load existing Tamagotchi on mount (triggered by click from mini view)
-  useEffect(() => {
-    const loadTamagotchi = async () => {
-      if (useAPI && identity) {
-        console.log('Checking for existing Tamagotchi for identity:', identity);
-        
-        try {
-          // Try to load existing Tamagotchi data
-          const apiGotchi = await apiClient.getState();
-          
-          if (apiGotchi) {
-            console.log('Found existing Tamagotchi:', apiGotchi);
-            
-            // Update stats from API response
-            const gameStats = apiResponseToGameState(apiGotchi);
-            setHappiness(gameStats.happiness);
-            setHunger(gameStats.hunger);
-            if (apiGotchi.health) {
-              console.log('Initial health from API:', apiGotchi.health, 'Type:', typeof apiGotchi.health);
-              setHealth(parseHealthStatus(apiGotchi.health));
-            }
-            updatePooState(apiGotchi);
-          updateBornAt(apiGotchi);
-            updateBornAt(apiGotchi);
-        updateBornAt(apiGotchi);
-      updateBornAt(apiGotchi);
-            
-            // Set the username from API
-            if (apiGotchi.name) {
-              setUsername(apiGotchi.name);
-            }
-            console.log('Initial load - health status:', apiGotchi.health);
-            
-            // Don't map server pet stats to food/health balances - they come from indexer
-            
-            setIsInitialized(true);
-            setHasExistingTamagotchi(true);
-            
-            // If we found a Tamagotchi and tutorial was requested, complete it
-            if (showTutorial && onTutorialComplete) {
-              onTutorialComplete();
-            }
-          } else {
-            console.log('No existing Tamagotchi found');
-            setIsInitialized(true);
-            // No Tamagotchi exists
-          }
-        } catch (err: any) {
-          console.error('Error loading Tamagotchi:', err);
-          // Only show init pending if we're not showing tutorial
-          if (!showTutorial) {
-            setShowInitPending(true);
-            // Remove tutorial completed flag so user can retry with tutorial
-            localStorage.removeItem('hyligotchi-tutorial-completed');
-          }
-          setIsInitialized(true); // Prevent infinite loading
-        }
-      }
-    };
-    
-    // Only load on mount (when component is opened from mini view)
-    loadTamagotchi();
-  }, []); // Empty dependency array - only runs once on mount
 
   // Store username when set in tutorial, but don't create Tamagotchi yet
   // The actual creation will happen when tutorial completes
   
   // Handle tutorial completion with API init
-  const handleTutorialComplete = async () => {
+  const handleTutorialComplete = useCallback(async () => {
     if (useAPI && identity && tamagotchiUsername && !hasExistingTamagotchi) {
       try {
         console.log('Tutorial completed, creating new Tamagotchi with name:', tamagotchiUsername);
@@ -407,8 +234,10 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
         const gameStats = apiResponseToGameState(apiGotchi);
         setHappiness(gameStats.happiness);
         setHunger(gameStats.hunger);
-        updatePooState(apiGotchi);
-        updateBornAt(apiGotchi);
+        updatePooState(apiGotchi.pooped || false);
+        if (apiGotchi.born_at) {
+          setBornAt(apiGotchi.born_at);
+        }
         
         // Don't map server pet stats to food/health balances - they come from indexer
         
@@ -424,46 +253,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     if (onTutorialComplete) {
       onTutorialComplete();
     }
-  };
-
-  // Periodic sync with server
-  useEffect(() => {
-    if (!useAPI || !identity || !isInitialized) return;
-    
-    const syncInterval = setInterval(async () => {
-      try {
-        const apiGotchi = await apiClient.getState();
-        
-        if (apiGotchi) {
-          console.log('Periodic sync - API response:', apiGotchi);
-          console.log('Current health before update:', health);
-          // Update stats from API response
-          const gameStats = apiResponseToGameState(apiGotchi);
-          setHappiness(gameStats.happiness || happiness);
-          setHunger(gameStats.hunger || hunger);
-          if (apiGotchi.health) {
-            console.log('Periodic sync - setting health:', apiGotchi.health, 'Type:', typeof apiGotchi.health);
-            // Force update even if same value to trigger re-render
-            setHealth(prev => {
-              const newHealth = parseHealthStatus(apiGotchi.health);
-              console.log('Previous health:', prev, 'New health:', newHealth);
-              return newHealth;
-            });
-          }
-          updatePooState(apiGotchi);
-          updateBornAt(apiGotchi);
-        updateBornAt(apiGotchi);
-      updateBornAt(apiGotchi);
-          
-          // Don't update balances from pet stats - they come from indexer
-        }
-      } catch (err) {
-        console.error('Sync error:', err);
-      }
-    }, 30000); // Sync every 30 seconds
-    
-    return () => clearInterval(syncInterval);
-  }, [useAPI, identity, isInitialized, setHappiness, setHunger, setHealth]);
+  }, [useAPI, identity, tamagotchiUsername, hasExistingTamagotchi, createIdentityBlobs, setHappiness, setHunger, updatePooState, setBornAt, setIsInitialized, setHasExistingTamagotchi, onTutorialComplete]);
 
   // Debug health state changes
   useEffect(() => {
@@ -512,7 +302,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
   }, [onClose]);
 
   // Calculate transition styles
-  const getTransitionStyles = () => {
+  const getTransitionStyles = useMemo(() => () => {
     if (transitionState === 'expanding' && transitionData) {
       // Start from mini position/size
       return {
@@ -527,9 +317,211 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       };
     }
     return {};
-  };
+  }, [transitionState, transitionData]);
 
-  const renderScreen = () => {
+  const handleInitPendingRetry = useCallback(() => {
+    setShowInitPending(false);
+    setIsInitialized(false);
+  }, [setShowInitPending, setIsInitialized]);
+
+  const handleLeftButtonClick = useCallback(() => {
+    if (!isWalletConnected) return;
+    if (showInitPending) {
+      handleInitPendingRetry();
+    } else if (showTutorial) {
+      tutorialRef.current?.handleLeftButton();
+    } else {
+      menuActions.handleZoneClick();
+    }
+  }, [isWalletConnected, showInitPending, handleInitPendingRetry, showTutorial, menuActions]);
+
+  const handleMiddleButtonClick = useCallback(() => {
+    if (!isWalletConnected) {
+      onConnectWallet?.();
+      return;
+    }
+    if (showInitPending) {
+      handleInitPendingRetry();
+    } else if (showTutorial) {
+      tutorialRef.current?.handleMiddleButton();
+    } else if (health === 'Dead' || health === 'dead') {
+      handleResurrect();
+    } else {
+      console.log('Middle button clicked!');
+      menuActions.handleZone2Click();
+    }
+  }, [isWalletConnected, onConnectWallet, showInitPending, handleInitPendingRetry, showTutorial, health, handleResurrect, menuActions]);
+
+  const handleRightButtonClick = useCallback(() => {
+    if (!isWalletConnected) return;
+    if (showInitPending) {
+      handleInitPendingRetry();
+    } else if (showTutorial) {
+      tutorialRef.current?.handleRightButton();
+    } else {
+      menuActions.handleZone3Click();
+    }
+  }, [isWalletConnected, showInitPending, handleInitPendingRetry, showTutorial, menuActions]);
+
+  const handleBackgroundClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) onClose();
+  }, [onClose]);
+
+  const handleShareButtonMouseEnter = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    e.currentTarget.style.transform = 'scale(1.05)';
+    e.currentTarget.style.boxShadow = '0 6px 16px rgba(223, 100, 69, 0.6)';
+  }, []);
+
+  const handleShareButtonMouseLeave = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    e.currentTarget.style.transform = 'scale(1)';
+    e.currentTarget.style.boxShadow = '0 4px 12px rgba(223, 100, 69, 0.4)';
+  }, []);
+
+  const handleShareToX = useCallback(() => {
+    // Generate dynamic share text based on metrics
+    const happinessMessages = {
+      low: [
+        `My Hyligotchi is in full existential crisis mode. Thoughts and prayers welcome.`
+      ],
+      mid: [
+        `Things aren't going too well for ${tamagotchiUsername || 'my Hyligotchi'}, but I'm taking good care of it and we're on the right track. Phew!`,
+        `Mid-tier vibes, but we're coping.`,
+        `Not quite thriving, not quite dying. My Hyligotchi is just... there.`
+      ],
+      high: [
+        `${tamagotchiUsername || 'My Hyligotchi'} is in a good mood − not perfect, but good, cozy, calm, serene. It's all good vibes from here.`,
+        `My Hyligotchi is emotionally stable. Weird flex, I know.`
+      ],
+      perfect: [
+        `Have you met ${tamagotchiUsername || 'my Hyligotchi'}? It's in an amazing mood right now, I've taken good care of it!`,
+        `Perfect mood, clean logs, full health. Who even is this functional little guy?`,
+        `My Hyligotchi is living its best zk life. You love to see it.`
+      ]
+    };
+
+    const deathMessages = [
+      `I have some tragic news: my Hyligotchi just died.`,
+      `I might want to practice keeping my Hyligotchi alive before considering having kids.`,
+      `One small step for me, one fatal misstep for my Hyligotchi.`
+    ];
+
+    const healthyMessages = [
+      `Happy to report that my Hyligotchi ${tamagotchiUsername || ''} is on a health streak!`,
+      `I guess my Hyligotchi is hitting the gym a lot because it's on a health streak!`,
+      `My Hyligotchi is doing well. I'm better at keeping it alive than I am at houseplants!`,
+      `Can I put "keeping my Hyligotchi alive" on my CV?`,
+      `Some people grow tomatoes. I'm growing a thriving Hyligotchi.`
+    ];
+
+    const sickMessages = [
+      `Uh-oh. Can I save my Hyligotchi? What do you think?`,
+      `Really thankful for Hyli being French right now, because my Hyligotchi needs healthcare.`,
+      `Hyligotchi is sick. I repeat, we have a zkEMERGENCY.`,
+      `${tamagotchiUsername || 'My Hyligotchi'} is sick. I'm stressed. We're both suffering.`
+    ];
+
+    const pooMessages = [
+      `My Hyligotchi just went PooPoo`,
+      `zk more like zkaka`,
+      `The true Hyli testnet experience is having to change my Hyligotchi's diapers`,
+      `Proof-of-poo verified. It's a mess in there.`,
+      `Hyligotchi log update: one very orange deposit.`
+    ];
+
+    const hungerMessages = {
+      starving: [
+        `I forgot to feed ${tamagotchiUsername || 'my Hyligotchi'}. Again.`,
+        `Apparently, proofs aren't enough to feed a Hyligotchi.`,
+        `I regret to inform you my Hyligotchi has entered famine mode.`
+      ],
+      hungry: [
+        `My Hyligotchi is hungry, but it's being chill about it. For now.`,
+        `${tamagotchiUsername || 'My Hyligotchi'} is not starving, but it's definitely eyeing the emergency oranges.`,
+        `This level of hunger is technically manageable. Emotionally? Less so.`
+      ],
+      satisfied: [
+        `I fed ${tamagotchiUsername || 'my Hyligotchi'} and it didn't die. I'm calling that a win.`,
+        `Healthy appetite, clean logs, zero complaints. That's the Hyli way.`
+      ],
+      full: [
+        `I may have overfed ${tamagotchiUsername || 'my Hyligotchi'}. It's round and very sleepy.`,
+        `Hyligotchi's full. Possibly too full.`,
+        `${tamagotchiUsername || 'My Hyligotchi'} has achieved peak satiety. Nice!`
+      ]
+    };
+
+    let shareText = '';
+    
+    // Check death first
+    if (health === 'Dead' || health === 'dead') {
+      shareText = deathMessages[Math.floor(Math.random() * deathMessages.length)];
+    } 
+    // Check health status
+    else if (health === 'Sick' || health === 'sick') {
+      shareText = sickMessages[Math.floor(Math.random() * sickMessages.length)];
+    }
+    // Otherwise randomly choose between poo, hunger, and happiness-based messages
+    else {
+      // Random selection between different message types
+      const messageOptions = [];
+      
+      // Add poo option if applicable
+      if (showPoo) {
+        messageOptions.push('poo');
+      }
+      
+      // Always add happiness and hunger options
+      messageOptions.push('happiness', 'hunger');
+      
+      // If healthy and happy, add health option
+      if ((health === 'Healthy' || health === 'healthy') && happiness > 6) {
+        messageOptions.push('health');
+      }
+      
+      // Randomly select message type
+      const selectedType = messageOptions[Math.floor(Math.random() * messageOptions.length)];
+      
+      if (selectedType === 'poo') {
+        shareText = pooMessages[Math.floor(Math.random() * pooMessages.length)];
+      } else if (selectedType === 'hunger') {
+        // Select hunger message based on hunger level
+        let hungerMsg;
+        if (hunger <= 3) {
+          hungerMsg = hungerMessages.starving;
+        } else if (hunger <= 6) {
+          hungerMsg = hungerMessages.hungry;
+        } else if (hunger <= 8) {
+          hungerMsg = hungerMessages.satisfied;
+        } else {
+          hungerMsg = hungerMessages.full;
+        }
+        shareText = hungerMsg[Math.floor(Math.random() * hungerMsg.length)];
+      } else if (selectedType === 'health') {
+        shareText = healthyMessages[Math.floor(Math.random() * healthyMessages.length)];
+      } else {
+        // Happiness-based messages
+        let messages;
+        if (happiness <= 3) {
+          messages = happinessMessages.low;
+        } else if (happiness <= 6) {
+          messages = happinessMessages.mid;
+        } else if (happiness <= 8) {
+          messages = happinessMessages.high;
+        } else {
+          messages = happinessMessages.perfect;
+        }
+        shareText = messages[Math.floor(Math.random() * messages.length)];
+      }
+    }
+    
+    shareText += `\n\nPlay Hyligotchi on @hyli_org!`;
+    
+    const shareUrl = 'https://hyli.fun';
+    const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
+    window.open(tweetUrl, '_blank', 'width=600,height=400');
+  }, [tamagotchiUsername, health, happiness, hunger, showPoo]);
+
+  const renderScreen = useCallback(() => {
     console.log('Current health state:', health);
     // Check if wallet is connected first
     if (!isWalletConnected) {
@@ -549,10 +541,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     
     // Show init pending screen if needed
     if (showInitPending) {
-      return <InitPendingScreen onRetry={() => {
-        setShowInitPending(false);
-        setIsInitialized(false);
-      }} />;
+      return <InitPendingScreen onRetry={handleInitPendingRetry} />;
     }
     
     // Show death screen if dead
@@ -590,7 +579,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
         isCleaningAnimationPlaying={isCleaningAnimationPlaying}
       />
     );
-  };
+  }, [isWalletConnected, showTutorial, useAPI, identity, hasExistingTamagotchi, handleTutorialComplete, tamagotchiUsername, setUsername, setTutorialStep, showInitPending, setShowInitPending, setIsInitialized, health, handleResurrect, menuState, foodBalances, healthBalances, hunger, happiness, bornAt, characterPosition, isBlinking, lastAction, showPoo, isCleaningAnimationPlaying]);
 
   return (
     <WalletProvider createIdentityBlobs={createIdentityBlobs}>
@@ -610,9 +599,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
         boxSizing: 'border-box',
         backgroundColor: 'rgba(0, 0, 0, 0.8)', // Dark overlay instead of blurred background
       }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+      onClick={handleBackgroundClick}
     >
       {/* Close Button */}
       <button
@@ -641,149 +628,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       
       {/* Share to X Button */}
       <button
-        onClick={() => {
-          // Generate dynamic share text based on metrics
-          const happinessMessages = {
-            low: [
-              `My Hyligotchi is in full existential crisis mode. Thoughts and prayers welcome.`
-            ],
-            mid: [
-              `Things aren't going too well for ${tamagotchiUsername || 'my Hyligotchi'}, but I'm taking good care of it and we're on the right track. Phew!`,
-              `Mid-tier vibes, but we're coping.`,
-              `Not quite thriving, not quite dying. My Hyligotchi is just... there.`
-            ],
-            high: [
-              `${tamagotchiUsername || 'My Hyligotchi'} is in a good mood − not perfect, but good, cozy, calm, serene. It's all good vibes from here.`,
-              `My Hyligotchi is emotionally stable. Weird flex, I know.`
-            ],
-            perfect: [
-              `Have you met ${tamagotchiUsername || 'my Hyligotchi'}? It's in an amazing mood right now, I've taken good care of it!`,
-              `Perfect mood, clean logs, full health. Who even is this functional little guy?`,
-              `My Hyligotchi is living its best zk life. You love to see it.`
-            ]
-          };
-
-          const deathMessages = [
-            `I have some tragic news: my Hyligotchi just died.`,
-            `I might want to practice keeping my Hyligotchi alive before considering having kids.`,
-            `One small step for me, one fatal misstep for my Hyligotchi.`
-          ];
-
-          const healthyMessages = [
-            `Happy to report that my Hyligotchi ${tamagotchiUsername || ''} is on a health streak!`,
-            `I guess my Hyligotchi is hitting the gym a lot because it's on a health streak!`,
-            `My Hyligotchi is doing well. I'm better at keeping it alive than I am at houseplants!`,
-            `Can I put "keeping my Hyligotchi alive" on my CV?`,
-            `Some people grow tomatoes. I'm growing a thriving Hyligotchi.`
-          ];
-
-          const sickMessages = [
-            `Uh-oh. Can I save my Hyligotchi? What do you think?`,
-            `Really thankful for Hyli being French right now, because my Hyligotchi needs healthcare.`,
-            `Hyligotchi is sick. I repeat, we have a zkEMERGENCY.`,
-            `${tamagotchiUsername || 'My Hyligotchi'} is sick. I'm stressed. We're both suffering.`
-          ];
-
-          const pooMessages = [
-            `My Hyligotchi just went PooPoo`,
-            `zk more like zkaka`,
-            `The true Hyli testnet experience is having to change my Hyligotchi's diapers`,
-            `Proof-of-poo verified. It's a mess in there.`,
-            `Hyligotchi log update: one very orange deposit.`
-          ];
-
-          const hungerMessages = {
-            starving: [
-              `I forgot to feed ${tamagotchiUsername || 'my Hyligotchi'}. Again.`,
-              `Apparently, proofs aren't enough to feed a Hyligotchi.`,
-              `I regret to inform you my Hyligotchi has entered famine mode.`
-            ],
-            hungry: [
-              `My Hyligotchi is hungry, but it's being chill about it. For now.`,
-              `${tamagotchiUsername || 'My Hyligotchi'} is not starving, but it's definitely eyeing the emergency oranges.`,
-              `This level of hunger is technically manageable. Emotionally? Less so.`
-            ],
-            satisfied: [
-              `I fed ${tamagotchiUsername || 'my Hyligotchi'} and it didn't die. I'm calling that a win.`,
-              `Healthy appetite, clean logs, zero complaints. That's the Hyli way.`
-            ],
-            full: [
-              `I may have overfed ${tamagotchiUsername || 'my Hyligotchi'}. It's round and very sleepy.`,
-              `Hyligotchi's full. Possibly too full.`,
-              `${tamagotchiUsername || 'My Hyligotchi'} has achieved peak satiety. Nice!`
-            ]
-          };
-
-          let shareText = '';
-          
-          // Check death first
-          if (health === 'Dead' || health === 'dead') {
-            shareText = deathMessages[Math.floor(Math.random() * deathMessages.length)];
-          } 
-          // Check health status
-          else if (health === 'Sick' || health === 'sick') {
-            shareText = sickMessages[Math.floor(Math.random() * sickMessages.length)];
-          }
-          // Otherwise randomly choose between poo, hunger, and happiness-based messages
-          else {
-            // Random selection between different message types
-            const messageOptions = [];
-            
-            // Add poo option if applicable
-            if (showPoo) {
-              messageOptions.push('poo');
-            }
-            
-            // Always add happiness and hunger options
-            messageOptions.push('happiness', 'hunger');
-            
-            // If healthy and happy, add health option
-            if ((health === 'Healthy' || health === 'healthy') && happiness > 6) {
-              messageOptions.push('health');
-            }
-            
-            // Randomly select message type
-            const selectedType = messageOptions[Math.floor(Math.random() * messageOptions.length)];
-            
-            if (selectedType === 'poo') {
-              shareText = pooMessages[Math.floor(Math.random() * pooMessages.length)];
-            } else if (selectedType === 'hunger') {
-              // Select hunger message based on hunger level
-              let hungerMsg;
-              if (hunger <= 3) {
-                hungerMsg = hungerMessages.starving;
-              } else if (hunger <= 6) {
-                hungerMsg = hungerMessages.hungry;
-              } else if (hunger <= 8) {
-                hungerMsg = hungerMessages.satisfied;
-              } else {
-                hungerMsg = hungerMessages.full;
-              }
-              shareText = hungerMsg[Math.floor(Math.random() * hungerMsg.length)];
-            } else if (selectedType === 'health') {
-              shareText = healthyMessages[Math.floor(Math.random() * healthyMessages.length)];
-            } else {
-              // Happiness-based messages
-              let messages;
-              if (happiness <= 3) {
-                messages = happinessMessages.low;
-              } else if (happiness <= 6) {
-                messages = happinessMessages.mid;
-              } else if (happiness <= 8) {
-                messages = happinessMessages.high;
-              } else {
-                messages = happinessMessages.perfect;
-              }
-              shareText = messages[Math.floor(Math.random() * messages.length)];
-            }
-          }
-          
-          shareText += `\n\nPlay Hyligotchi on @hyli_org!`;
-          
-          const shareUrl = 'https://hyli.fun';
-          const tweetUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`;
-          window.open(tweetUrl, '_blank', 'width=600,height=400');
-        }}
+        onClick={handleShareToX}
         style={{
           position: 'absolute',
           bottom: 20,
@@ -804,14 +649,8 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           boxShadow: '0 4px 12px rgba(223, 100, 69, 0.4)',
           transition: 'transform 0.2s, box-shadow 0.2s',
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'scale(1.05)';
-          e.currentTarget.style.boxShadow = '0 6px 16px rgba(223, 100, 69, 0.6)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'scale(1)';
-          e.currentTarget.style.boxShadow = '0 4px 12px rgba(223, 100, 69, 0.4)';
-        }}
+        onMouseEnter={handleShareButtonMouseEnter}
+        onMouseLeave={handleShareButtonMouseLeave}
         title="Share to X"
       >
         SHARE TO X
@@ -858,7 +697,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           naturalZoneY={DEVICE_CONFIG.buttons.left.y}
           naturalZoneWidth={DEVICE_CONFIG.buttons.left.width}
           naturalZoneHeight={DEVICE_CONFIG.buttons.left.height}
-          onClick={!isWalletConnected ? () => {} : showInitPending ? () => { setShowInitPending(false); setIsInitialized(false); } : showTutorial ? () => tutorialRef.current?.handleLeftButton() : menuActions.handleZoneClick}
+          onClick={handleLeftButtonClick}
         />
         <ClickableZoneOverlay
           imgRef={imgRef}
@@ -866,10 +705,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           naturalZoneY={DEVICE_CONFIG.buttons.middle.y}
           naturalZoneWidth={DEVICE_CONFIG.buttons.middle.width}
           naturalZoneHeight={DEVICE_CONFIG.buttons.middle.height}
-          onClick={!isWalletConnected ? (onConnectWallet || (() => {})) : showInitPending ? () => { setShowInitPending(false); setIsInitialized(false); } : showTutorial ? () => tutorialRef.current?.handleMiddleButton() : (health === 'Dead' || health === 'dead') ? handleResurrect : () => {
-            console.log('Middle button clicked!');
-            menuActions.handleZone2Click();
-          }}
+          onClick={handleMiddleButtonClick}
           backgroundColor="rgba(0, 255, 0, 0.5)"
         />
         <ClickableZoneOverlay
@@ -878,7 +714,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           naturalZoneY={DEVICE_CONFIG.buttons.right.y}
           naturalZoneWidth={DEVICE_CONFIG.buttons.right.width}
           naturalZoneHeight={DEVICE_CONFIG.buttons.right.height}
-          onClick={!isWalletConnected ? () => {} : showInitPending ? () => { setShowInitPending(false); setIsInitialized(false); } : showTutorial ? () => tutorialRef.current?.handleRightButton() : menuActions.handleZone3Click}
+          onClick={handleRightButtonClick}
           backgroundColor="rgba(0, 0, 255, 0.5)"
         />
       </div>

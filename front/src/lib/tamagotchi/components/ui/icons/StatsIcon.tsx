@@ -21,4 +21,5 @@ const StatsIcon: React.FC = () => (
   </svg>
 );
 
-export default StatsIcon; 
+// Memoize since this is a static icon with no props
+export default React.memo(StatsIcon); 
