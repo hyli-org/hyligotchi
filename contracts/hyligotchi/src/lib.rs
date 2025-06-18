@@ -134,6 +134,18 @@ impl sdk::ZkContract for HyliGotchiWorldZkView {
     }
 }
 
+impl sdk::TransactionalZkContract for HyliGotchiWorldZkView {
+    type State = sdk::StateCommitment;
+
+    fn initial_state(&self) -> Self::State {
+        self.commitment.clone()
+    }
+
+    fn revert(&mut self, initial_state: Self::State) {
+        self.commitment = initial_state;
+    }
+}
+
 pub fn handle_nontick_action(
     gotchi: &mut HyliGotchi,
     user: &Identity,

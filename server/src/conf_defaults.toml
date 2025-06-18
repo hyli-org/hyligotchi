@@ -11,7 +11,8 @@ indexer_url = "http://localhost:4321"
 
 
 buffer_blocks = 0
-max_txs_per_proof = 100
+max_txs_per_proof = 20
+tx_working_window_size = 100
 
 
 [websocket]

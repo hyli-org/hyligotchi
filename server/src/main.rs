@@ -158,6 +158,7 @@ async fn main() -> Result<()> {
                 default_state: world.clone(),
                 buffer_blocks: config.buffer_blocks,
                 max_txs_per_proof: config.max_txs_per_proof,
+                tx_working_window_size: config.tx_working_window_size,
             }
             .into(),
         )
