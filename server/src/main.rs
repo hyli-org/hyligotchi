@@ -206,35 +206,8 @@ async fn main() -> Result<()> {
         .build_module::<TickerModule>((app_ctx.node_client.clone(), app_ctx.crypto_context.clone()))
         .await?;
 
-    #[cfg(unix)]
-    {
-        use tokio::signal::unix;
-        let mut terminate = unix::signal(unix::SignalKind::interrupt())?;
-        tokio::select! {
-            Err(e) = handler.start_modules() => {
-                error!("Error running modules: {:?}", e);
-            }
-            _ = tokio::signal::ctrl_c() => {
-                info!("Ctrl-C received, shutting down");
-            }
-            _ = terminate.recv() =>  {
-                info!("SIGTERM received, shutting down");
-            }
-        }
-        _ = handler.shutdown_modules().await;
-    }
-    #[cfg(not(unix))]
-    {
-        tokio::select! {
-            Err(e) = handler.start_modules() => {
-                error!("Error running modules: {:?}", e);
-            }
-            _ = tokio::signal::ctrl_c() => {
-                info!("Ctrl-C received, shutting down");
-            }
-        }
-        _ = handler.shutdown_modules().await;
-    }
+    handler.start_modules().await?;
+    handler.exit_process().await?;
 
     if args.pg {
         warn!("--pg option given. Postgres server will stop. Cleaning data dir");
