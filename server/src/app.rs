@@ -260,7 +260,7 @@ struct FeedAmount {
 pub enum FeedType {
     Food,
     Sweets,
-    Vitamins,
+    Vitamin,
 }
 
 impl FeedType {
@@ -268,7 +268,7 @@ impl FeedType {
         match self {
             FeedType::Food => "oranj",
             FeedType::Sweets => "oxygen",
-            FeedType::Vitamins => "vitamins",
+            FeedType::Vitamin => "vitamin",
         }
     }
 
@@ -276,7 +276,7 @@ impl FeedType {
         match self {
             FeedType::Food => HyliGotchiAction::FeedFood(identity, amount),
             FeedType::Sweets => HyliGotchiAction::FeedSweets(identity, amount),
-            FeedType::Vitamins => HyliGotchiAction::FeedVitamins(identity, amount),
+            FeedType::Vitamin => HyliGotchiAction::FeedVitamins(identity, amount),
         }
     }
 }
@@ -305,7 +305,7 @@ async fn feed_vitamins(
     Query(feed_amount): Query<FeedAmount>,
     Json(wallet_blobs): Json<[Blob; 2]>,
 ) -> Result<impl IntoResponse, AppError> {
-    feed_generic(ctx, headers, feed_amount, wallet_blobs, FeedType::Vitamins).await
+    feed_generic(ctx, headers, feed_amount, wallet_blobs, FeedType::Vitamin).await
 }
 
 async fn feed_generic(
@@ -379,7 +379,7 @@ async fn send(
             handle_feed_action(amount, &ctx, identity, &mut blobs, FeedType::Sweets).await?;
         }
         HyliGotchiAction::FeedVitamins(ref identity, amount) => {
-            handle_feed_action(amount, &ctx, identity, &mut blobs, FeedType::Vitamins).await?;
+            handle_feed_action(amount, &ctx, identity, &mut blobs, FeedType::Vitamin).await?;
         }
         _ => {
             blobs.push(action.as_blob(ctx.hyligotchi_cn.clone()));

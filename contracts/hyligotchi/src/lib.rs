@@ -220,7 +220,7 @@ pub fn handle_nontick_action(
                 return Err(format!("Gotchi does not exist for user {}", ident.0));
             }
             exec_ctx.is_in_callee_blobs(
-                &"vitamins".into(),
+                &"vitamin".into(),
                 SmtTokenAction::Transfer {
                     sender: user.clone(),
                     recipient: "hyligotchi".into(),
