@@ -9,8 +9,10 @@ use alloc::{
     string::{String, ToString},
 };
 use borsh::{io::Error, BorshDeserialize, BorshSerialize};
+use hyle_smt_token::SmtTokenAction;
 use rand::{Rng, SeedableRng};
 use rand_seeder::{SipHasher, SipRng};
+use sdk::caller::ExecutionContext;
 use sdk::merkle_utils::{BorshableMerkleProof, SHA256Hasher};
 use sdk::secp256k1::CheckSecp256k1;
 use sdk::tracing::info;
@@ -57,7 +59,7 @@ impl sdk::ZkContract for HyliGotchiWorldZkView {
     /// Entry point of the contract's logic
     fn execute(&mut self, calldata: &sdk::Calldata) -> RunResult {
         // Parse contract inputs
-        let (action, ctx) = sdk::utils::parse_raw_calldata::<HyliGotchiAction>(calldata)?;
+        let (action, mut exec_ctx) = sdk::utils::parse_raw_calldata::<HyliGotchiAction>(calldata)?;
 
         let Some(tx_ctx) = calldata.tx_ctx.as_ref() else {
             return Err("Missing tx context necessary for this contract".to_string());
@@ -71,11 +73,15 @@ impl sdk::ZkContract for HyliGotchiWorldZkView {
                 return Err("Tick data must be set for tick action".to_string());
             };
             self.commitment = tick_data.0.clone();
-            return Ok(("Tick".as_bytes().to_vec(), ctx, alloc::vec![]));
+            return Ok(("Tick".as_bytes().to_vec(), exec_ctx, alloc::vec![]));
         }
 
         // Not an identity contract.
-        if calldata.identity.0.ends_with(ctx.contract_name.0.as_str()) {
+        if calldata
+            .identity
+            .0
+            .ends_with(exec_ctx.contract_name.0.as_str())
+        {
             return Err("This contract does not support identity actions".to_string());
         }
 
@@ -114,7 +120,7 @@ impl sdk::ZkContract for HyliGotchiWorldZkView {
         }
 
         // Execute the given action
-        let res = handle_nontick_action(&mut gotchi, user, action, tx_ctx)?;
+        let res = handle_nontick_action(&mut gotchi, user, action, tx_ctx, &mut exec_ctx)?;
 
         // Now update the commitment
         let leaves = vec![(account_key, gotchi.to_h256())];
@@ -125,7 +131,7 @@ impl sdk::ZkContract for HyliGotchiWorldZkView {
 
         self.commitment = get_state_commitment(new_root, self.backend_pubkey);
 
-        Ok((res.as_bytes().to_vec(), ctx, alloc::vec![]))
+        Ok((res.as_bytes().to_vec(), exec_ctx, alloc::vec![]))
     }
 
     /// In this example, we serialize the full state on-chain.
@@ -151,6 +157,7 @@ pub fn handle_nontick_action(
     user: &Identity,
     action: HyliGotchiAction,
     tx_ctx: &sdk::TxContext,
+    exec_ctx: &mut ExecutionContext,
 ) -> Result<String, String> {
     match action {
         HyliGotchiAction::Init(ident, name) => {
@@ -178,6 +185,14 @@ pub fn handle_nontick_action(
             if gotchi.name.is_empty() {
                 return Err(format!("Gotchi does not exist for user {}", ident.0));
             }
+            exec_ctx.is_in_callee_blobs(
+                &"oranj".into(),
+                SmtTokenAction::Transfer {
+                    sender: user.clone(),
+                    recipient: "hyligotchi".into(),
+                    amount: food_amount as u128,
+                },
+            )?;
             gotchi.feed_food(food_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)
         }
         HyliGotchiAction::FeedSweets(ident, sweets_amount) => {
@@ -187,6 +202,14 @@ pub fn handle_nontick_action(
             if gotchi.name.is_empty() {
                 return Err(format!("Gotchi does not exist for user {}", ident.0));
             }
+            exec_ctx.is_in_callee_blobs(
+                &"oxygen".into(),
+                SmtTokenAction::Transfer {
+                    sender: user.clone(),
+                    recipient: "hyligotchi".into(),
+                    amount: sweets_amount as u128,
+                },
+            )?;
             gotchi.feed_sweets(sweets_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)
         }
         HyliGotchiAction::FeedVitamins(ident, vitamins_amount) => {
@@ -196,6 +219,14 @@ pub fn handle_nontick_action(
             if gotchi.name.is_empty() {
                 return Err(format!("Gotchi does not exist for user {}", ident.0));
             }
+            exec_ctx.is_in_callee_blobs(
+                &"vitamins".into(),
+                SmtTokenAction::Transfer {
+                    sender: user.clone(),
+                    recipient: "hyligotchi".into(),
+                    amount: vitamins_amount as u128,
+                },
+            )?;
             gotchi.feed_vitamins(vitamins_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)
         }
         HyliGotchiAction::Tick(..) => {

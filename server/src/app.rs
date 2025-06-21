@@ -17,8 +17,9 @@ use hyle_modules::{
     module_bus_client, module_handle_messages,
     modules::{prover::AutoProverEvent, BuildApiContextInner, Module},
 };
+use hyle_smt_token::SmtTokenAction;
 use hyligotchi::{client::HyliGotchiWorld, HyliGotchi, HyliGotchiAction};
-use sdk::{Blob, BlobTransaction, ContractName, Identity};
+use sdk::{Blob, BlobTransaction, ContractAction, ContractName, Identity};
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tower_http::cors::{Any, CorsLayer};
@@ -255,20 +256,38 @@ struct FeedAmount {
     amount: u64,
 }
 
+#[derive(Debug, Clone)]
+pub enum FeedType {
+    Food,
+    Sweets,
+    Vitamins,
+}
+
+impl FeedType {
+    fn token_name(&self) -> &'static str {
+        match self {
+            FeedType::Food => "oranj",
+            FeedType::Sweets => "oxygen",
+            FeedType::Vitamins => "vitamins",
+        }
+    }
+
+    fn to_action(&self, identity: Identity, amount: u64) -> HyliGotchiAction {
+        match self {
+            FeedType::Food => HyliGotchiAction::FeedFood(identity, amount),
+            FeedType::Sweets => HyliGotchiAction::FeedSweets(identity, amount),
+            FeedType::Vitamins => HyliGotchiAction::FeedVitamins(identity, amount),
+        }
+    }
+}
+
 async fn feed_food(
     State(ctx): State<RouterCtx>,
     headers: HeaderMap,
     Query(feed_amount): Query<FeedAmount>,
     Json(wallet_blobs): Json<[Blob; 2]>,
 ) -> Result<impl IntoResponse, AppError> {
-    let auth = AuthHeaders::from_headers(&headers)?;
-    send(
-        ctx,
-        HyliGotchiAction::FeedFood(Identity(auth.identity.clone()), feed_amount.amount),
-        auth,
-        wallet_blobs.to_vec(),
-    )
-    .await
+    feed_generic(ctx, headers, feed_amount, wallet_blobs, FeedType::Food).await
 }
 
 async fn feed_sweets(
@@ -277,14 +296,7 @@ async fn feed_sweets(
     Query(feed_amount): Query<FeedAmount>,
     Json(wallet_blobs): Json<[Blob; 2]>,
 ) -> Result<impl IntoResponse, AppError> {
-    let auth = AuthHeaders::from_headers(&headers)?;
-    send(
-        ctx,
-        HyliGotchiAction::FeedSweets(Identity(auth.identity.clone()), feed_amount.amount),
-        auth,
-        wallet_blobs.to_vec(),
-    )
-    .await
+    feed_generic(ctx, headers, feed_amount, wallet_blobs, FeedType::Sweets).await
 }
 
 async fn feed_vitamins(
@@ -293,15 +305,23 @@ async fn feed_vitamins(
     Query(feed_amount): Query<FeedAmount>,
     Json(wallet_blobs): Json<[Blob; 2]>,
 ) -> Result<impl IntoResponse, AppError> {
-    let auth = AuthHeaders::from_headers(&headers)?;
-    send(
-        ctx,
-        HyliGotchiAction::FeedVitamins(Identity(auth.identity.clone()), feed_amount.amount),
-        auth,
-        wallet_blobs.to_vec(),
-    )
-    .await
+    feed_generic(ctx, headers, feed_amount, wallet_blobs, FeedType::Vitamins).await
 }
+
+async fn feed_generic(
+    ctx: RouterCtx,
+    headers: HeaderMap,
+    feed_amount: FeedAmount,
+    wallet_blobs: [Blob; 2],
+    feed_type: FeedType,
+) -> Result<impl IntoResponse, AppError> {
+    let auth = AuthHeaders::from_headers(&headers)?;
+    let identity = Identity(auth.identity.clone());
+    let action = feed_type.to_action(identity, feed_amount.amount);
+
+    send(ctx, action, auth, wallet_blobs.to_vec()).await
+}
+
 async fn trigger_tick(
     State(ctx): State<RouterCtx>,
     headers: HeaderMap,
@@ -351,7 +371,20 @@ async fn send(
 ) -> Result<impl IntoResponse, AppError> {
     let identity = Identity(auth.identity);
 
-    blobs.push(action.as_blob(ctx.hyligotchi_cn.clone()));
+    match action {
+        HyliGotchiAction::FeedFood(ref identity, amount) => {
+            handle_feed_action(amount, &ctx, identity, &mut blobs, FeedType::Food).await?;
+        }
+        HyliGotchiAction::FeedSweets(ref identity, amount) => {
+            handle_feed_action(amount, &ctx, identity, &mut blobs, FeedType::Sweets).await?;
+        }
+        HyliGotchiAction::FeedVitamins(ref identity, amount) => {
+            handle_feed_action(amount, &ctx, identity, &mut blobs, FeedType::Vitamins).await?;
+        }
+        _ => {
+            blobs.push(action.as_blob(ctx.hyligotchi_cn.clone()));
+        }
+    }
 
     let tx_hash = ctx
         .client
@@ -383,4 +416,60 @@ async fn send(
         }
     })
     .await?
+}
+
+async fn handle_feed_action(
+    amount: u64,
+    ctx: &RouterCtx,
+    identity: &Identity,
+    blobs: &mut Vec<Blob>,
+    feed_type: FeedType,
+) -> Result<(), AppError> {
+    let balance = get_user_token_balance(ctx, identity, feed_type.token_name()).await?;
+
+    if balance < amount as u128 {
+        return Err(AppError(
+            StatusCode::BAD_REQUEST,
+            anyhow::anyhow!(
+                "Insufficient balance. Current balance is {} while deposit is {}",
+                balance,
+                amount
+            ),
+        ));
+    }
+
+    let transfer_action = SmtTokenAction::Transfer {
+        sender: identity.clone(),
+        recipient: ctx.hyligotchi_cn.0.clone().into(),
+        amount: amount as u128,
+    };
+
+    let feed_action = feed_type.to_action(identity.clone(), amount);
+    blobs.push(feed_action.as_blob(ctx.hyligotchi_cn.clone()));
+    blobs.push(transfer_action.as_blob(feed_type.token_name().into(), None, None));
+
+    Ok(())
+}
+
+#[derive(Deserialize)]
+struct Balance {
+    _address: String,
+    balance: u128,
+}
+
+async fn get_user_token_balance(
+    ctx: &RouterCtx,
+    identity: &Identity,
+    token_name: &str,
+) -> Result<u128, AppError> {
+    let balance = reqwest::get(&format!(
+        "{}/v1/indexer/contract/{}/balance/{}",
+        ctx.indexer_client.url, token_name, &identity.0
+    ))
+    .await
+    .map_err(|e| AppError(StatusCode::INTERNAL_SERVER_ERROR, anyhow::anyhow!(e)))?
+    .json::<Balance>()
+    .await?;
+
+    Ok(balance.balance)
 }

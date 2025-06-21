@@ -7,7 +7,11 @@ members = ["contracts", "contracts/hyligotchi", "server"]
 sdk = { git = "https://github.com/hyle-org/hyle", package = "hyle-contract-sdk", branch = "main" }
 client-sdk = { git = "https://github.com/hyle-org/hyle", default-features = false, package = "hyle-client-sdk", branch = "main" }
 hyle_modules = { git = "https://github.com/hyle-org/hyle", package = "hyle-modules", branch = "main" }
-hyle_hyllar = { git = "https://github.com/Hyle-org/hyle", package = "hyle-hyllar", branch = "main" }
+hyle_smt_token = { git = "https://github.com/Hyle-org/hyle", package = "hyle-smt-token", branch = "main" }
+
+sp1-sdk = { version = "5.0.0", default-features = false }
+sp1-helper = "5.0.0"
+sp1-zkvm = { version = "5.0.0", default-features = false }
 
 contracts = { path = "contracts", default-features = false, package = "contracts" }
 hyligotchi = { path = "contracts/hyligotchi", package = "hyligotchi" }

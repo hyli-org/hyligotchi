@@ -126,7 +126,7 @@ impl TxExecutorHandler for HyliGotchiWorld {
         let initial_state_commitment =
             get_state_commitment(*self.gotchis.0.root(), self.backend_pubkey);
 
-        let (action, ctx) = sdk::utils::parse_raw_calldata::<HyliGotchiAction>(calldata)
+        let (action, mut exec_ctx) = sdk::utils::parse_raw_calldata::<HyliGotchiAction>(calldata)
             .map_err(|e| anyhow!("Failed to parse calldata: {}", e))?;
 
         let Some(tx_ctx) = &calldata.tx_ctx else {
@@ -145,7 +145,7 @@ impl TxExecutorHandler for HyliGotchiWorld {
                 get_state_commitment(*self.gotchis.0.root(), self.backend_pubkey),
                 calldata,
                 &mut match tick_ok {
-                    Ok(_) => Ok(("Tick".as_bytes().to_vec(), ctx, alloc::vec![])),
+                    Ok(_) => Ok(("Tick".as_bytes().to_vec(), exec_ctx, alloc::vec![])),
                     Err(e) => Err(e.to_string()),
                 },
             ));
@@ -168,7 +168,7 @@ impl TxExecutorHandler for HyliGotchiWorld {
             .get(&HyliGotchi::compute_key(&user))
             .context("Gotchi not found in the state")?;
 
-        let res = handle_nontick_action(&mut gotchi, &user, action, tx_ctx);
+        let res = handle_nontick_action(&mut gotchi, &user, action, tx_ctx, &mut exec_ctx);
 
         self.gotchis
             .0
@@ -183,7 +183,7 @@ impl TxExecutorHandler for HyliGotchiWorld {
             next_state_commitment,
             calldata,
             &mut match &res {
-                Ok(str) => Ok((str.as_bytes().to_vec(), ctx, alloc::vec![])),
+                Ok(str) => Ok((str.as_bytes().to_vec(), exec_ctx, alloc::vec![])),
                 Err(e) => Err(e.to_string()),
             },
         ))
