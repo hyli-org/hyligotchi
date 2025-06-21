@@ -21,6 +21,7 @@ import { useHealthBalances } from '../hooks/useHealthBalances';
 import { apiClient } from '../api/client';
 import { apiResponseToGameState, parseHealthStatus } from '../utils/gameStateManager';
 import { WalletProvider } from '../contexts/WalletContext';
+import TransactionNotification from './ui/TransactionNotification';
 // Import default assets
 import defaultDeviceImage from '../assets/hyligotchi-orange.png';
 
@@ -71,6 +72,8 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
   const [isInitialized, setIsInitialized] = useState(false);
   const [hasExistingTamagotchi, setHasExistingTamagotchi] = useState(false);
   const [showInitPending, setShowInitPending] = useState(false);
+  const [currentTxHash, setCurrentTxHash] = useState<string | null>(null);
+  const [tutorialCompleted, setTutorialCompleted] = useState(false);
   
   // Use food balances hook with API and identity
   const { balances: foodBalances, consumeFood } = useFoodBalances(useAPI, identity, indexerUrl);
@@ -134,35 +137,34 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     }
   };
 
-  // API-enabled tick function
-  const handleTick = async () => {
-    if (!useAPI || !identity) {
-      setActionWithTimeout('Cannot tick without API');
-      return;
-    }
-    
-    try {
-      setActionWithTimeout('Ticking...');
-      await apiClient.tick(createIdentityBlobs);
-      
-      
-      setActionWithTimeout('Time advanced!');
-    } catch (err) {
-      console.error('Tick error:', err);
-      setActionWithTimeout('Failed to tick');
-    }
-  };
 
-  // API-enabled clean function
+  // API-enabled clean function with optimistic updates
   const handleClean = async () => {
     if (!useAPI || !identity) {
       localHandleClean();
       return;
     }
     
+    // Check if there's actually poo to clean
+    if (!showPoo) {
+      setActionWithTimeout('Nothing to clean!');
+      return;
+    }
+    
+    // Optimistically update UI immediately
+    setShowPoo(false);
+    setNeedsCleaning(false);
+    setIsCleaningAnimationPlaying(true);
+    setActionWithTimeout('Cleaning...');
+    
     try {
-      setActionWithTimeout('Cleaning...');
       const apiGotchi = await apiClient.cleanPoop(createIdentityBlobs);
+      
+      // Show transaction notification
+      const txHash = apiClient.getLastTxHash();
+      if (txHash) {
+        setCurrentTxHash(txHash);
+      }
       
       // Update stats from API response
       const gameStats = apiResponseToGameState(apiGotchi);
@@ -176,20 +178,19 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       
       setActionWithTimeout('Cleaned poo!');
       
-      // Play cleaning animation if poo was cleaned
-      if (!apiGotchi.pooped && showPoo) {
-        setIsCleaningAnimationPlaying(true);
-        setTimeout(() => {
-          setIsCleaningAnimationPlaying(false);
-        }, 1000);
-      }
+      // Animation cleanup
+      setTimeout(() => {
+        setIsCleaningAnimationPlaying(false);
+      }, 1000);
     } catch (err) {
       console.error('Clean error:', err);
       setActionWithTimeout('Failed to clean');
+      // Just refresh state from server on error
+      await refreshStateFromAPI();
     }
   };
 
-  // API-enabled feeding functions
+  // API-enabled feeding functions with optimistic updates
   const handleApiFeed = async (foodType: 'ORANJ' | 'OXYGEN') => {
     console.log('handleApiFeed called with:', foodType);
     console.log('API conditions:', { useAPI, identity, isInitialized });
@@ -200,6 +201,21 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       return false;
     }
     
+    // Calculate optimistic stat changes
+    const hungerIncrease = foodType === 'ORANJ' ? 2 : 1;
+    const happinessIncrease = foodType === 'OXYGEN' ? 1 : 0;
+    
+    // Apply optimistic updates immediately
+    setHunger(Math.min(10, hunger + hungerIncrease));
+    setHappiness(Math.min(10, happiness + happinessIncrease));
+    setActionWithTimeout(`Feeding ${foodType}...`);
+    
+    // Optimistically consume food balance
+    if (consumeFood) {
+      console.log('Optimistically consuming food from balance...');
+      consumeFood(foodType === 'ORANJ' ? 'ORANJ' : 'OXYGEN', 1);
+    }
+    
     try {
       // Map UI food types to API types
       const apiType = foodType === 'ORANJ' ? 'food' : 'sweets';
@@ -207,6 +223,12 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       
       const apiGotchi = await apiClient[apiType === 'food' ? 'feedFood' : 'feedSweets'](1, createIdentityBlobs);
       console.log('API response:', apiGotchi);
+      
+      // Show transaction notification
+      const txHash = apiClient.getLastTxHash();
+      if (txHash) {
+        setCurrentTxHash(txHash);
+      }
       
       // Update stats from API response
       const gameStats = apiResponseToGameState(apiGotchi);
@@ -218,16 +240,14 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       updatePooState(apiGotchi);
       updateBornAt(apiGotchi);
       
-      // Don't update balances from pet stats - they come from indexer
-      // Trigger a refresh of balances after feeding
-      if (consumeFood) {
-        console.log('Consuming food from balance...');
-        await consumeFood(foodType === 'ORANJ' ? 'ORANJ' : 'OXYGEN', 1);
-      }
+      setActionWithTimeout(`Fed ${foodType}!`);
       
       return true;
     } catch (err) {
       console.error('Feed error:', err);
+      setActionWithTimeout('Feeding failed!');
+      // Refresh state from server on error
+      await refreshStateFromAPI();
       return false;
     }
   };
@@ -237,8 +257,25 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       return false;
     }
     
+    // Optimistically update health status if sick
+    if (health === 'Sick' || health === 'sick') {
+      setHealth('Healthy');
+    }
+    setActionWithTimeout(`Using ${healthType}...`);
+    
+    // Optimistically consume health balance
+    if (consumeHealth) {
+      consumeHealth(healthType, 1);
+    }
+    
     try {
       const apiGotchi = await apiClient.feedVitamins(1, createIdentityBlobs);
+      
+      // Show transaction notification
+      const txHash = apiClient.getLastTxHash();
+      if (txHash) {
+        setCurrentTxHash(txHash);
+      }
       
       // Update stats from API response
       const gameStats = apiResponseToGameState(apiGotchi);
@@ -250,11 +287,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       updatePooState(apiGotchi);
       updateBornAt(apiGotchi);
       
-      // Don't update balances from pet stats - they come from indexer
-      // Trigger a refresh of balances after using health item
-      if (consumeHealth) {
-        await consumeHealth(healthType, 1);
-      }
+      setActionWithTimeout(`Used ${healthType}!`);
       
       // After feeding vitamins, re-fetch the state to get updated health
       setTimeout(async () => {
@@ -264,6 +297,9 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       return true;
     } catch (err) {
       console.error('Health error:', err);
+      setActionWithTimeout('Health item use failed!');
+      // Refresh state from server on error
+      await refreshStateFromAPI();
       return false;
     }
   };
@@ -295,15 +331,28 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     }
   };
 
-  // Handle resurrect
+  // Handle resurrect with optimistic updates
   const handleResurrect = async () => {
     if (!useAPI || !identity || !isInitialized) {
       return;
     }
     
+    // Optimistically resurrect
+    setHealth('Healthy');
+    setHappiness(5);
+    setHunger(5);
+    setShowPoo(false);
+    setNeedsCleaning(false);
+    setActionWithTimeout('Resurrecting...');
+    
     try {
-      setActionWithTimeout('Resurrecting...');
       const apiGotchi = await apiClient.resurrect(createIdentityBlobs);
+      
+      // Show transaction notification
+      const txHash = apiClient.getLastTxHash();
+      if (txHash) {
+        setCurrentTxHash(txHash);
+      }
       
       // Update stats from API response
       const gameStats = apiResponseToGameState(apiGotchi);
@@ -324,6 +373,8 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     } catch (err) {
       console.error('Resurrect error:', err);
       setActionWithTimeout('Failed to resurrect');
+      // Refresh state from server on error
+      await refreshStateFromAPI();
     }
   };
 
@@ -403,10 +454,10 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     loadTamagotchi();
   }, []); // Empty dependency array - only runs once on mount
 
-  // Initialize new Tamagotchi when username is set in tutorial
+  // Initialize new Tamagotchi when tutorial is completed
   useEffect(() => {
     const createTamagotchi = async () => {
-      if (useAPI && identity && tamagotchiUsername && !hasExistingTamagotchi) {
+      if (useAPI && identity && tamagotchiUsername && !hasExistingTamagotchi && tutorialCompleted) {
         
         try {
           console.log('Creating new Tamagotchi with name:', tamagotchiUsername);
@@ -419,6 +470,12 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           
           const apiGotchi = await apiClient.init(tamagotchiUsername, createIdentityBlobs);
           console.log('Successfully created Tamagotchi:', apiGotchi);
+          
+          // Show transaction notification
+          const txHash = apiClient.getLastTxHash();
+          if (txHash) {
+            setCurrentTxHash(txHash);
+          }
           
           // Update stats from API response
           const gameStats = apiResponseToGameState(apiGotchi);
@@ -439,11 +496,11 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       }
     };
     
-    // Only create if we have a username but no existing Tamagotchi
-    if (tamagotchiUsername && !hasExistingTamagotchi) {
+    // Only create if we have a username, tutorial is completed, but no existing Tamagotchi
+    if (tamagotchiUsername && !hasExistingTamagotchi && tutorialCompleted) {
       createTamagotchi();
     }
-  }, [useAPI, identity, tamagotchiUsername, hasExistingTamagotchi, setHappiness, setHunger]);
+  }, [useAPI, identity, tamagotchiUsername, hasExistingTamagotchi, tutorialCompleted, setHappiness, setHunger]);
 
   // Periodic sync with server
   useEffect(() => {
@@ -559,7 +616,12 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     if (showTutorial && useAPI && identity && !hasExistingTamagotchi) {
       return <TutorialScreen 
         ref={tutorialRef} 
-        onCompleteTutorial={onTutorialComplete || (() => {})} 
+        onCompleteTutorial={() => {
+          setTutorialCompleted(true);
+          if (onTutorialComplete) {
+            onTutorialComplete();
+          }
+        }} 
         username={tamagotchiUsername} 
         setUsername={setUsername}
         onStepChange={setTutorialStep}
@@ -656,33 +718,6 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       >
         ×
       </button>
-      
-      {/* Tick Button - Only show when API is enabled */}
-      {useAPI && identity && (
-        <button
-          onClick={handleTick}
-          style={{
-            position: 'absolute',
-            top: 20,
-            right: 70,
-            background: 'rgba(0,0,0,0.5)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '8px',
-            padding: '8px 16px',
-            cursor: 'pointer',
-            fontSize: '14px',
-            zIndex: 10001,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontFamily: "'Press Start 2P', monospace",
-          }}
-          title="Advance time (debug)"
-        >
-          ⏰ TICK
-        </button>
-      )}
       
       {/* Share to X Button */}
       <button
@@ -862,8 +897,13 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
         SHARE TO X
       </button>
       
-      {/* 
-          Device Container */}
+      {/* Transaction Notification */}
+      <TransactionNotification 
+        txHash={currentTxHash} 
+        onClose={() => setCurrentTxHash(null)} 
+      />
+      
+      {/* Device Container */}
       <div style={{ 
         position: 'relative',
         ...getTransitionStyles()

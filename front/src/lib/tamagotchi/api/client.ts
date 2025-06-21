@@ -9,9 +9,15 @@ export interface ApiGotchi {
   born_at?: number; // Block number when the pet was born
 }
 
+export interface ApiResponse {
+  gotchi: ApiGotchi;
+  tx_hash: string;
+}
+
 class HyligotchiAPIClient {
   private baseUrl: string;
   private identity: string | null = null;
+  private lastTxHash: string | null = null;
 
   constructor() {
     this.baseUrl = import.meta.env.VITE_HYLIGOTCHI_API_URL || 'http://localhost:4008';
@@ -23,6 +29,10 @@ class HyligotchiAPIClient {
 
   setBaseUrl(url: string) {
     this.baseUrl = url;
+  }
+
+  getLastTxHash(): string | null {
+    return this.lastTxHash;
   }
 
   private async fetchWithAuth(url: string, options: RequestInit = {}) {
@@ -90,10 +100,14 @@ class HyligotchiAPIClient {
     console.log('Sending body:', body);
     console.log('Body length:', body.length);
     
-    return this.fetchWithAuth(`/api/init?name=${encodeURIComponent(name)}`, {
+    const response: ApiResponse = await this.fetchWithAuth(`/api/init?name=${encodeURIComponent(name)}`, {
       method: 'POST',
       body: body,
     });
+    
+    // Store tx hash and return gotchi data
+    this.lastTxHash = response.tx_hash;
+    return response.gotchi;
   }
 
   async getState(): Promise<ApiGotchi | null> {
@@ -130,10 +144,14 @@ class HyligotchiAPIClient {
       throw new Error('Failed to create identity blobs. Please ensure you have an active session key.');
     }
     
-    return this.fetchWithAuth(`/api/feed/food?amount=${amount}`, {
+    const response: ApiResponse = await this.fetchWithAuth(`/api/feed/food?amount=${amount}`, {
       method: 'POST',
       body: JSON.stringify(blobs),
     });
+    
+    // Store tx hash and return gotchi data
+    this.lastTxHash = response.tx_hash;
+    return response.gotchi;
   }
 
   async feedSweets(amount: number, createIdentityBlobs?: () => [any, any]): Promise<ApiGotchi> {
@@ -149,10 +167,14 @@ class HyligotchiAPIClient {
       throw new Error('Failed to create identity blobs. Please ensure you have an active session key.');
     }
     
-    return this.fetchWithAuth(`/api/feed/sweets?amount=${amount}`, {
+    const response: ApiResponse = await this.fetchWithAuth(`/api/feed/sweets?amount=${amount}`, {
       method: 'POST',
       body: JSON.stringify(blobs),
     });
+    
+    // Store tx hash and return gotchi data
+    this.lastTxHash = response.tx_hash;
+    return response.gotchi;
   }
 
   async feedVitamins(amount: number, createIdentityBlobs?: () => [any, any]): Promise<ApiGotchi> {
@@ -168,10 +190,14 @@ class HyligotchiAPIClient {
       throw new Error('Failed to create identity blobs. Please ensure you have an active session key.');
     }
     
-    return this.fetchWithAuth(`/api/feed/vitamins?amount=${amount}`, {
+    const response: ApiResponse = await this.fetchWithAuth(`/api/feed/vitamins?amount=${amount}`, {
       method: 'POST',
       body: JSON.stringify(blobs),
     });
+    
+    // Store tx hash and return gotchi data
+    this.lastTxHash = response.tx_hash;
+    return response.gotchi;
   }
 
   async resurrect(createIdentityBlobs?: () => [any, any]): Promise<ApiGotchi> {
@@ -187,10 +213,14 @@ class HyligotchiAPIClient {
       throw new Error('Failed to create identity blobs. Please ensure you have an active session key.');
     }
     
-    return this.fetchWithAuth('/api/resurrect', {
+    const response: ApiResponse = await this.fetchWithAuth('/api/resurrect', {
       method: 'POST',
       body: JSON.stringify(blobs),
     });
+    
+    // Store tx hash and return gotchi data
+    this.lastTxHash = response.tx_hash;
+    return response.gotchi;
   }
 
   async cleanPoop(createIdentityBlobs?: () => [any, any]): Promise<ApiGotchi> {
@@ -206,10 +236,14 @@ class HyligotchiAPIClient {
       throw new Error('Failed to create identity blobs. Please ensure you have an active session key.');
     }
     
-    return this.fetchWithAuth('/api/poop/clean', {
+    const response: ApiResponse = await this.fetchWithAuth('/api/poop/clean', {
       method: 'POST',
       body: JSON.stringify(blobs),
     });
+    
+    // Store tx hash and return gotchi data
+    this.lastTxHash = response.tx_hash;
+    return response.gotchi;
   }
 
   async tick(createIdentityBlobs?: () => [any, any]): Promise<ApiGotchi> {

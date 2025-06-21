@@ -160,6 +160,12 @@ pub struct ApiGotchi {
     pub vitamins: u64,
 }
 
+#[derive(Serialize, Debug)]
+pub struct ApiResponse {
+    pub gotchi: ApiGotchi,
+    pub tx_hash: String,
+}
+
 impl From<HyliGotchi> for ApiGotchi {
     fn from(hyligotchi: HyliGotchi) -> Self {
         ApiGotchi {
@@ -404,7 +410,10 @@ async fn send(
                     if sequenced_tx_hash == tx_hash {
                         // let balance = state.balances.get(&identity).copied().unwrap_or(0);
                         let gotchi: ApiGotchi = state.get(&identity).unwrap_or_default().into();
-                        return Ok(Json(gotchi));
+                        return Ok(Json(ApiResponse {
+                            gotchi,
+                            tx_hash: tx_hash.to_string(),
+                        }));
                     }
                 }
                 AutoProverEvent::FailedTx(sequenced_tx_hash, error) => {

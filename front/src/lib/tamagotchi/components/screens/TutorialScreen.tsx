@@ -21,7 +21,7 @@ const STORY_STEPS = [
   "What should we call this little friend? Give them a name!",
   "Please take care of the alien! Make sure to keep him happy and healthy! ",
   "You can play minigames on Hyli testnet to earn some food and health for your alien friend!",
-  "You're now guardian of {username}! Take good care of your citrus-loving friend! 🌟🍊"
+  "Creating {username} on the blockchain... Press any button to begin! 🌟🍊"
 ];
 
 const TutorialScreen = React.forwardRef<TutorialScreenRef, TutorialScreenProps>(({ 
@@ -161,7 +161,8 @@ const TutorialScreen = React.forwardRef<TutorialScreenRef, TutorialScreenProps>(
         {currentStep === 0 ? '📡 SIGNAL DETECTED 📡' : 
          currentStep === 1 ? '👽 ALIEN DISCOVERED 👽' :
          currentStep === 2 ? '✏️ NAME YOUR FRIEND ✏️' :
-         `🤝 BONDING ${currentStep - 2}/4 🤝`}
+         currentStep === 5 ? '🚀 LAUNCH READY 🚀' :
+         `🤝 BONDING ${currentStep - 2}/3 🤝`}
       </div>
 
       {/* Main Character Display */}

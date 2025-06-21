@@ -148,16 +148,16 @@ export const useMenuState = (
       return;
     }
     
+    // Close menu immediately for instant feedback
+    setInFoodMenu(false);
+    setSelectedAction(null);
+    
     try {
       console.log('Calling handleApiFeed...');
       const success = await handleApiFeed(foodType);
       console.log('handleApiFeed returned:', success);
       
-      if (success) {
-        setActionWithTimeout(`Fed ${foodType}!`);
-        setInFoodMenu(false);
-        setSelectedAction(null);
-      } else {
+      if (!success) {
         setActionWithTimeout('Feeding failed!');
       }
     } catch (error) {
@@ -179,12 +179,12 @@ export const useMenuState = (
       return;
     }
     
+    // Close menu immediately for instant feedback
+    setInHealthMenu(false);
+    setSelectedAction(null);
+    
     const success = await handleApiHealth(healthType);
-    if (success) {
-      setActionWithTimeout(`Used ${healthType}!`);
-      setInHealthMenu(false);
-      setSelectedAction(null);
-    } else {
+    if (!success) {
       setActionWithTimeout('Health item use failed!');
     }
   };
