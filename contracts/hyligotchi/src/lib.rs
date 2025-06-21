@@ -9,12 +9,15 @@ use alloc::{
     string::{String, ToString},
 };
 use borsh::{io::Error, BorshDeserialize, BorshSerialize};
+use hyle_smt_token::SmtTokenAction;
 use rand::{Rng, SeedableRng};
 use rand_seeder::{SipHasher, SipRng};
 use sdk::merkle_utils::{BorshableMerkleProof, SHA256Hasher};
 use sdk::secp256k1::CheckSecp256k1;
 use sdk::tracing::info;
-use sdk::{BlobIndex, BlockHash, ConsensusProposalHash, Identity, RunResult, StateCommitment};
+use sdk::{
+    BlobIndex, BlockHash, ConsensusProposalHash, ContractName, Identity, RunResult, StateCommitment,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sparse_merkle_tree::traits::Value;
@@ -114,7 +117,7 @@ impl sdk::ZkContract for HyliGotchiWorldZkView {
         }
 
         // Execute the given action
-        let res = handle_nontick_action(&mut gotchi, user, action, tx_ctx)?;
+        let res = handle_nontick_action(&mut gotchi, user, action, tx_ctx, calldata)?;
 
         // Now update the commitment
         let leaves = vec![(account_key, gotchi.to_h256())];
@@ -151,6 +154,7 @@ pub fn handle_nontick_action(
     user: &Identity,
     action: HyliGotchiAction,
     tx_ctx: &sdk::TxContext,
+    calldata: &sdk::Calldata,
 ) -> Result<String, String> {
     match action {
         HyliGotchiAction::Init(ident, name) => {
@@ -178,6 +182,42 @@ pub fn handle_nontick_action(
             if gotchi.name.is_empty() {
                 return Err(format!("Gotchi does not exist for user {}", ident.0));
             }
+            // Find the oranj transfer blob
+            let oranj_transfer_blob_index = calldata
+                .blobs
+                .iter()
+                .position(|(_, b)| b.contract_name == ContractName("oranj".to_string()))
+                .ok_or_else(|| "Missing Oranj transfer blob".to_string())?;
+
+            let transfer_action = sdk::utils::parse_structured_blob::<SmtTokenAction>(
+                &calldata.blobs,
+                &sdk::BlobIndex(oranj_transfer_blob_index),
+            )
+            .ok_or_else(|| "Failed to decode Oranj transfer action".to_string())?
+            .data
+            .parameters;
+
+            let SmtTokenAction::Transfer {
+                sender,
+                recipient,
+                amount,
+            } = transfer_action
+            else {
+                return Err("Failed to decode Oranj transfer action".to_string());
+            };
+            if sender != *user {
+                return Err("You can only feed your own gotchi".to_string());
+            }
+            if recipient != "hyligotchi".into() {
+                return Err("You have to send oranj to the hyligotchi contract".to_string());
+            }
+            if amount != food_amount as u128 {
+                return Err(format!(
+                    "Invalid amount in Oranj blob. Expected {}, got {}",
+                    food_amount, amount
+                ));
+            }
+
             gotchi.feed_food(food_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)
         }
         HyliGotchiAction::FeedSweets(ident, sweets_amount) => {
@@ -187,6 +227,43 @@ pub fn handle_nontick_action(
             if gotchi.name.is_empty() {
                 return Err(format!("Gotchi does not exist for user {}", ident.0));
             }
+
+            // Find the oxygen transfer blob
+            let oxygen_transfer_blob_index = calldata
+                .blobs
+                .iter()
+                .position(|(_, b)| b.contract_name == ContractName("oxygen".to_string()))
+                .ok_or_else(|| "Missing oxygen transfer blob".to_string())?;
+
+            let transfer_action = sdk::utils::parse_structured_blob::<SmtTokenAction>(
+                &calldata.blobs,
+                &sdk::BlobIndex(oxygen_transfer_blob_index),
+            )
+            .ok_or_else(|| "Failed to decode oxygen transfer action".to_string())?
+            .data
+            .parameters;
+
+            let SmtTokenAction::Transfer {
+                sender,
+                recipient,
+                amount,
+            } = transfer_action
+            else {
+                return Err("Failed to decode oxygen transfer action".to_string());
+            };
+            if sender != *user {
+                return Err("You can only feed your own gotchi".to_string());
+            }
+            if recipient != "hyligotchi".into() {
+                return Err("You have to send oxygen to the hyligotchi contract".to_string());
+            }
+            if amount != sweets_amount as u128 {
+                return Err(format!(
+                    "Invalid amount in oxygen blob. Expected {}, got {}",
+                    sweets_amount, amount
+                ));
+            }
+
             gotchi.feed_sweets(sweets_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)
         }
         HyliGotchiAction::FeedVitamins(ident, vitamins_amount) => {
@@ -195,6 +272,42 @@ pub fn handle_nontick_action(
             }
             if gotchi.name.is_empty() {
                 return Err(format!("Gotchi does not exist for user {}", ident.0));
+            }
+
+            // Find the vitamin transfer blob
+            let vitamin_transfer_blob_index = calldata
+                .blobs
+                .iter()
+                .position(|(_, b)| b.contract_name == ContractName("vitamin".to_string()))
+                .ok_or_else(|| "Missing vitamin transfer blob".to_string())?;
+
+            let transfer_action = sdk::utils::parse_structured_blob::<SmtTokenAction>(
+                &calldata.blobs,
+                &sdk::BlobIndex(vitamin_transfer_blob_index),
+            )
+            .ok_or_else(|| "Failed to decode vitamin transfer action".to_string())?
+            .data
+            .parameters;
+
+            let SmtTokenAction::Transfer {
+                sender,
+                recipient,
+                amount,
+            } = transfer_action
+            else {
+                return Err("Failed to decode vitamin transfer action".to_string());
+            };
+            if sender != *user {
+                return Err("You can only feed your own gotchi".to_string());
+            }
+            if recipient != "hyligotchi".into() {
+                return Err("You have to send vitamins to the hyligotchi contract".to_string());
+            }
+            if amount != vitamins_amount as u128 {
+                return Err(format!(
+                    "Invalid amount in vitamin blob. Expected {}, got {}",
+                    vitamins_amount, amount
+                ));
             }
             gotchi.feed_vitamins(vitamins_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)
         }

@@ -168,7 +168,7 @@ impl TxExecutorHandler for HyliGotchiWorld {
             .get(&HyliGotchi::compute_key(&user))
             .context("Gotchi not found in the state")?;
 
-        let res = handle_nontick_action(&mut gotchi, &user, action, tx_ctx);
+        let res = handle_nontick_action(&mut gotchi, &user, action, tx_ctx, calldata);
 
         self.gotchis
             .0

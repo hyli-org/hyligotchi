@@ -19,13 +19,13 @@ serde = { version = "1.0", default-features = false, features = [
 borsh = { version = "1.5.7" }
 uuid = { version = "1.6", features = ["serde"], default-features = false }
 
-sp1-zkvm = { version = "5.0.0", default-features = false, optional = true }
+sp1-zkvm = { workspace = true, optional = true }
 client-sdk = { workspace = true, default-features = false, features = [
     "sp1",
     "rest",
     "indexer",
 ], optional = true }
-hyle_hyllar = { workspace = true }
+hyle_smt_token = { workspace = true }
 rand = { version = "0.9.0", default-features = false }
 rand_seeder = { version = "0.4.0", default-features = false }
 
