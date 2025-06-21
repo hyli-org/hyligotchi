@@ -453,7 +453,8 @@ async fn handle_feed_action(
 
 #[derive(Deserialize)]
 struct Balance {
-    _address: String,
+    #[allow(dead_code)]
+    address: String,
     balance: u128,
 }
 
