@@ -135,11 +135,15 @@ export const useMenuState = (
     console.log('handleApiFeed exists?', !!handleApiFeed);
     console.log('foodBalances:', foodBalances);
     
+    // Close menu immediately for instant feedback
+    setInFoodMenu(false);
+    setSelectedAction(null);
+    
     // Check if balance > 0
-    // if (foodBalances[foodType] <= 0) {
-    //   setActionWithTimeout(`No ${foodType} left!`);
-    //   return;
-    // }
+    if (foodBalances[foodType] <= 0) {
+      setActionWithTimeout(`No ${foodType} left!`);
+      return;
+    }
 
     // API is required for feeding
     if (!handleApiFeed) {
@@ -147,10 +151,6 @@ export const useMenuState = (
       setActionWithTimeout('API connection required!');
       return;
     }
-    
-    // Close menu immediately for instant feedback
-    setInFoodMenu(false);
-    setSelectedAction(null);
     
     try {
       console.log('Calling handleApiFeed...');
@@ -167,6 +167,10 @@ export const useMenuState = (
   };
 
   const handleHealth = async (healthType: HealthType) => {
+    // Close menu immediately for instant feedback
+    setInHealthMenu(false);
+    setSelectedAction(null);
+    
     // Check if balance > 0
     if (healthBalances[healthType] <= 0) {
       setActionWithTimeout(`No ${healthType} left!`);
@@ -178,10 +182,6 @@ export const useMenuState = (
       setActionWithTimeout('API connection required!');
       return;
     }
-    
-    // Close menu immediately for instant feedback
-    setInHealthMenu(false);
-    setSelectedAction(null);
     
     const success = await handleApiHealth(healthType);
     if (!success) {

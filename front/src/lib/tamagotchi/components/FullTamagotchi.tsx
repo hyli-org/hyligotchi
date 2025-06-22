@@ -201,6 +201,13 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       return false;
     }
     
+    // Check balance before proceeding
+    if (foodBalances[foodType] <= 0) {
+      console.log('No balance for:', foodType);
+      setActionWithTimeout(`No ${foodType} left!`);
+      return false;
+    }
+    
     // Calculate optimistic stat changes
     const hungerIncrease = foodType === 'ORANJ' ? 2 : 1;
     const happinessIncrease = foodType === 'OXYGEN' ? 1 : 0;
@@ -254,6 +261,13 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
   
   const handleApiHealth = async (healthType: 'VITAMIN') => {
     if (!useAPI || !identity || !isInitialized) {
+      return false;
+    }
+    
+    // Check balance before proceeding
+    if (healthBalances[healthType] <= 0) {
+      console.log('No balance for:', healthType);
+      setActionWithTimeout(`No ${healthType} left!`);
       return false;
     }
     
