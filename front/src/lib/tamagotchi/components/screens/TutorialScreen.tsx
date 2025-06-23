@@ -31,6 +31,7 @@ const TutorialScreen = React.forwardRef<TutorialScreenRef, TutorialScreenProps>(
   onStepChange
 }, ref) => {
   const [currentStep, setCurrentStep] = useState(0);
+  const [isCompleting, setIsCompleting] = useState(false);
   
   // Notify parent of step changes
   React.useEffect(() => {
@@ -62,7 +63,8 @@ const TutorialScreen = React.forwardRef<TutorialScreenRef, TutorialScreenProps>(
       setCurrentStep(prev => prev + 1);
       setIsBlinking(true);
       setTimeout(() => setIsBlinking(false), 200);
-    } else {
+    } else if (!isCompleting) {
+      setIsCompleting(true);
       onCompleteTutorial();
     }
   };
@@ -80,7 +82,8 @@ const TutorialScreen = React.forwardRef<TutorialScreenRef, TutorialScreenProps>(
       setCurrentStep(prev => prev + 1);
       setIsBlinking(true);
       setTimeout(() => setIsBlinking(false), 200);
-    } else {
+    } else if (!isCompleting) {
+      setIsCompleting(true);
       onCompleteTutorial();
     }
   };
@@ -98,7 +101,8 @@ const TutorialScreen = React.forwardRef<TutorialScreenRef, TutorialScreenProps>(
       setCurrentStep(prev => prev + 1);
       setIsBlinking(true);
       setTimeout(() => setIsBlinking(false), 200);
-    } else {
+    } else if (!isCompleting) {
+      setIsCompleting(true);
       onCompleteTutorial();
     }
   };

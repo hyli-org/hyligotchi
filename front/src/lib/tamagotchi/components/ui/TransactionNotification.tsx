@@ -52,23 +52,23 @@ const TransactionNotification: React.FC<TransactionNotificationProps> = ({ txHas
         right: '20px',
         background: 'linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%)',
         color: '#fff',
-        padding: '10px 16px',
-        borderRadius: '12px',
+        padding: '16px 24px',
+        borderRadius: '16px',
         border: '1px solid rgba(255, 255, 255, 0.1)',
         fontFamily: "'Press Start 2P', monospace",
-        fontSize: '8px',
+        fontSize: '12px',
         zIndex: 10002,
         opacity: isVisible ? 1 : 0,
         transform: isVisible ? 'translateY(0)' : 'translateY(-10px)',
         transition: 'all 0.2s ease-in-out',
         pointerEvents: isVisible ? 'auto' : 'none',
-        minWidth: '180px',
+        minWidth: '280px',
         boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
         cursor: 'pointer',
         backdropFilter: 'blur(10px)',
         display: 'flex',
         alignItems: 'center',
-        gap: '10px',
+        gap: '16px',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'translateY(0) scale(1.02)';
@@ -80,9 +80,9 @@ const TransactionNotification: React.FC<TransactionNotificationProps> = ({ txHas
       }}
     >
       <div style={{
-        width: '32px',
-        height: '32px',
-        borderRadius: '8px',
+        width: '48px',
+        height: '48px',
+        borderRadius: '12px',
         background: 'linear-gradient(135deg, #00ff88 0%, #00cc66 100%)',
         display: 'flex',
         alignItems: 'center',
@@ -91,7 +91,7 @@ const TransactionNotification: React.FC<TransactionNotificationProps> = ({ txHas
         boxShadow: 'inset 0 1px 2px rgba(255, 255, 255, 0.3)',
       }}>
         <div style={{
-          fontSize: '16px',
+          fontSize: '24px',
           animation: 'pulse 1s ease-in-out',
         }}>
           ✓
@@ -105,22 +105,22 @@ const TransactionNotification: React.FC<TransactionNotificationProps> = ({ txHas
       }}>
         <div style={{ 
           color: '#00ff88',
-          fontSize: '9px',
+          fontSize: '14px',
           fontWeight: 'bold',
           letterSpacing: '0.5px',
         }}>
           TX SENT
         </div>
         <div style={{ 
-          fontSize: '7px', 
+          fontSize: '10px', 
           opacity: 0.7,
           letterSpacing: '0.3px',
           display: 'flex',
           alignItems: 'center',
-          gap: '4px',
+          gap: '6px',
         }}>
           {shortHash}
-          <span style={{ fontSize: '6px', opacity: 0.5 }}>↗</span>
+          <span style={{ fontSize: '8px', opacity: 0.5 }}>↗</span>
         </div>
       </div>
     </div>

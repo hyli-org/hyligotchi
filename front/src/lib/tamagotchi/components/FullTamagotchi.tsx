@@ -107,6 +107,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
   const [showInitPending, setShowInitPending] = useState(false);
   const [currentTxHash, setCurrentTxHash] = useState<string | null>(null);
   const [tutorialCompleted, setTutorialCompleted] = useState(false);
+  const [isCreatingTamagotchi, setIsCreatingTamagotchi] = useState(false);
   
   // Use food balances hook with API and identity
   const { balances: foodBalances, consumeFood } = useFoodBalances(useAPI, identity, indexerUrl);
@@ -152,6 +153,16 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
   
   // Track tutorial step for z-index management
   const [tutorialStep, setTutorialStep] = useState(0);
+  const [lastButtonClick, setLastButtonClick] = useState(0);
+  
+  // Debounced button handler to prevent rapid clicks
+  const handleButtonClick = (callback: () => void) => {
+    const now = Date.now();
+    if (now - lastButtonClick > 300) { // 300ms debounce
+      setLastButtonClick(now);
+      callback();
+    }
+  };
 
   // Helper function to update poo state from API response
   const updatePooState = (apiGotchi: any) => {
@@ -504,7 +515,20 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
   // Initialize new Tamagotchi when tutorial is completed
   useEffect(() => {
     const createTamagotchi = async () => {
-      if (useAPI && identity && tamagotchiUsername && !hasExistingTamagotchi && tutorialCompleted) {
+      console.log('createTamagotchi called with:', {
+        useAPI, 
+        identity: !!identity, 
+        tamagotchiUsername, 
+        hasExistingTamagotchi, 
+        tutorialCompleted, 
+        isCreatingTamagotchi
+      });
+      
+      if (useAPI && identity && tamagotchiUsername && !hasExistingTamagotchi && tutorialCompleted && !isCreatingTamagotchi) {
+        // Immediately set flags to prevent duplicate calls
+        console.log('All conditions met, creating Tamagotchi...');
+        setIsCreatingTamagotchi(true);
+        setHasExistingTamagotchi(true);
         
         try {
           console.log('Creating new Tamagotchi with name:', tamagotchiUsername);
@@ -536,18 +560,21 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           // Don't map server pet stats to food/health balances - they come from indexer
           
           setIsInitialized(true);
-          setHasExistingTamagotchi(true);
+          setIsCreatingTamagotchi(false);
         } catch (err: any) {
           console.error('Init error:', err);
+          // Reset flags on error so user can retry
+          setHasExistingTamagotchi(false);
+          setIsCreatingTamagotchi(false);
         }
       }
     };
     
     // Only create if we have a username, tutorial is completed, but no existing Tamagotchi
-    if (tamagotchiUsername && !hasExistingTamagotchi && tutorialCompleted) {
+    if (tamagotchiUsername && !hasExistingTamagotchi && tutorialCompleted && !isCreatingTamagotchi) {
       createTamagotchi();
     }
-  }, [useAPI, identity, tamagotchiUsername, hasExistingTamagotchi, tutorialCompleted, setHappiness, setHunger, updatePooState]);
+  }, [useAPI, identity, tamagotchiUsername, hasExistingTamagotchi, tutorialCompleted, isCreatingTamagotchi]);
 
   // Periodic sync with server
   useEffect(() => {
@@ -993,17 +1020,19 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           naturalZoneWidth={DEVICE_CONFIG.buttons.left.width}
           naturalZoneHeight={DEVICE_CONFIG.buttons.left.height}
           onClick={() => {
-            setClickedButton('left');
-            if (!isWalletConnected) {
-              return;
-            } else if (showInitPending) {
-              setShowInitPending(false);
-              setIsInitialized(false);
-            } else if (showTutorial) {
-              tutorialRef.current?.handleLeftButton();
-            } else {
-              menuActions.handleZoneClick();
-            }
+            handleButtonClick(() => {
+              setClickedButton('left');
+              if (!isWalletConnected) {
+                return;
+              } else if (showInitPending) {
+                setShowInitPending(false);
+                setIsInitialized(false);
+              } else if (showTutorial) {
+                tutorialRef.current?.handleLeftButton();
+              } else {
+                menuActions.handleZoneClick();
+              }
+            });
           }}
         />
         <ClickableZoneOverlay
@@ -1013,22 +1042,24 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           naturalZoneWidth={DEVICE_CONFIG.buttons.middle.width}
           naturalZoneHeight={DEVICE_CONFIG.buttons.middle.height}
           onClick={() => {
-            setClickedButton('middle');
-            if (!isWalletConnected) {
-              if (onConnectWallet) {
-                onConnectWallet();
+            handleButtonClick(() => {
+              setClickedButton('middle');
+              if (!isWalletConnected) {
+                if (onConnectWallet) {
+                  onConnectWallet();
+                }
+                return;
+              } else if (showInitPending) {
+                setShowInitPending(false);
+                setIsInitialized(false);
+              } else if (showTutorial) {
+                tutorialRef.current?.handleMiddleButton()
+              } else if (health === 'Dead' || health === 'dead') {
+                handleResurrect();
+              } else {
+                menuActions.handleZone2Click();
               }
-              return;
-            } else if (showInitPending) {
-              setShowInitPending(false);
-              setIsInitialized(false);
-            } else if (showTutorial) {
-              tutorialRef.current?.handleMiddleButton()
-            } else if (health === 'Dead' || health === 'dead') {
-              handleResurrect();
-            } else {
-              menuActions.handleZone2Click();
-            }
+            });
           }}
           backgroundColor="rgba(0, 255, 0, 0.5)"
         />
@@ -1039,17 +1070,19 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           naturalZoneWidth={DEVICE_CONFIG.buttons.right.width}
           naturalZoneHeight={DEVICE_CONFIG.buttons.right.height}
           onClick={() => {
-            setClickedButton('right');
-            if (!isWalletConnected) {
-              return;
-            } else if (showInitPending) {
-              setShowInitPending(false);
-              setIsInitialized(false);
-            } else if (showTutorial) {
-              tutorialRef.current?.handleRightButton();
-            } else {
-              menuActions.handleZone3Click();
-            }
+            handleButtonClick(() => {
+              setClickedButton('right');
+              if (!isWalletConnected) {
+                return;
+              } else if (showInitPending) {
+                setShowInitPending(false);
+                setIsInitialized(false);
+              } else if (showTutorial) {
+                tutorialRef.current?.handleRightButton();
+              } else {
+                menuActions.handleZone3Click();
+              }
+            });
           }}
           backgroundColor="rgba(0, 0, 255, 0.5)"
         />
