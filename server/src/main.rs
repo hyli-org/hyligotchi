@@ -4,8 +4,6 @@ use axum::Router;
 use clap::Parser;
 use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiHttpClient};
 use client_sdk::transaction_builder::TxExecutorHandler;
-use conf::Conf;
-use contracts::HYLI_GOTCHI_ELF;
 use hyle_modules::{
     bus::{metrics::BusMetrics, SharedMessageBus},
     modules::{
@@ -21,8 +19,8 @@ use hyligotchi::client::{HyliGotchiWorld, HyliGotchiWorldConstructor};
 use prometheus::Registry;
 use sdk::api::NodeInfo;
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
-use sp1_sdk::{Prover, SP1ProvingKey};
-use std::path::Path;
+use server::conf::Conf;
+use server::utils::load_pk;
 use std::sync::Arc;
 use tracing::{error, info, warn};
 
@@ -30,22 +28,27 @@ use crate::app::CryptoContext;
 use crate::ticker_module::TickerModule;
 
 mod app;
-mod conf;
 mod init;
 mod ticker_module;
-mod utils;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 pub struct Args {
     #[arg(long, default_value = "config.toml")]
+    /// The configuration file(s) to use.
     pub config_file: Vec<String>,
 
     #[arg(long, default_value = "hyligotchi")]
+    /// The name of the contract to initialize.
     pub contract_name: String,
 
+    #[arg(short, long, default_value = "true")]
+    // /// If set, the process will initialize the prover and start the prover module.
+    pub prover: std::primitive::bool,
+
     #[clap(long, action)]
-    pub pg: bool,
+    /// If set, the process will exit after initialization and cleanup the data directory.
+    pub cleanup: bool,
 }
 
 #[tokio::main]
@@ -56,6 +59,17 @@ async fn main() -> Result<()> {
     setup_tracing(&config.log_format, "hyligotchi".to_string()).context("setting up tracing")?;
 
     let config = Arc::new(config);
+
+    if args.cleanup {
+        // Check if the data directory exists
+        if config.data_directory.exists() {
+            tracing::error!(
+                "Data directory '{}' already exists. '--cleanup' requires it to be deleted.",
+                config.data_directory.display()
+            );
+            return Ok(());
+        }
+    }
 
     info!("Starting app with config: {:?}", &config);
 
@@ -80,6 +94,7 @@ async fn main() -> Result<()> {
     let constructor = HyliGotchiWorldConstructor {
         backend_pubkey: public_key.serialize(),
     };
+
     let world = HyliGotchiWorld::new(&constructor);
 
     let contracts = vec![init::ContractInit {
@@ -146,21 +161,26 @@ async fn main() -> Result<()> {
         })
         .await?;
 
-    handler
-        .build_module::<AutoProver<HyliGotchiWorld>>(
-            AutoProverCtx {
-                data_directory: config.data_directory.clone(),
-                prover: Arc::new(prover),
-                contract_name: app_ctx.hyligotchi_cn.clone(),
-                node: app_ctx.node_client.clone(),
-                default_state: world.clone(),
-                buffer_blocks: config.buffer_blocks,
-                max_txs_per_proof: config.max_txs_per_proof,
-                tx_working_window_size: config.tx_working_window_size,
-            }
-            .into(),
-        )
-        .await?;
+    if args.prover {
+        info!("Prover module enabled, initializing...");
+        handler
+            .build_module::<AutoProver<HyliGotchiWorld>>(
+                AutoProverCtx {
+                    data_directory: config.data_directory.clone(),
+                    prover: Arc::new(prover),
+                    contract_name: app_ctx.hyligotchi_cn.clone(),
+                    node: app_ctx.node_client.clone(),
+                    default_state: world.clone(),
+                    buffer_blocks: config.buffer_blocks,
+                    max_txs_per_proof: config.max_txs_per_proof,
+                    tx_working_window_size: config.tx_working_window_size,
+                }
+                .into(),
+            )
+            .await?;
+    } else {
+        info!("Prover module disabled, skipping initialization.");
+    }
 
     handler
         .build_module::<DAListener>(DAListenerConf {
@@ -207,37 +227,10 @@ async fn main() -> Result<()> {
     handler.start_modules().await?;
     handler.exit_process().await?;
 
-    if args.pg {
-        warn!("--pg option given. Postgres server will stop. Cleaning data dir");
+    if args.cleanup {
+        warn!("--cleanup option given. Cleaning data dir");
         std::fs::remove_dir_all(&config.data_directory).context("removing data directory")?;
     }
 
     Ok(())
-}
-
-pub fn load_pk(data_directory: &Path) -> SP1ProvingKey {
-    let pk_path = data_directory.join("proving_key.bin");
-
-    if pk_path.exists() {
-        info!("Loading proving key from disk");
-        return std::fs::read(&pk_path)
-            .map(|bytes| serde_json::from_slice(&bytes).expect("Failed to deserialize proving key"))
-            .expect("Failed to read proving key from disk");
-    } else if let Err(e) = std::fs::create_dir_all(data_directory) {
-        error!("Failed to create data directory: {}", e);
-    }
-
-    info!("Building proving key");
-
-    let client = sp1_sdk::ProverClient::builder().cpu().build();
-    let (pk, _) = client.setup(HYLI_GOTCHI_ELF);
-
-    if let Err(e) = std::fs::write(
-        &pk_path,
-        serde_json::to_vec(&pk).expect("Failed to serialize proving key"),
-    ) {
-        error!("Failed to save proving key to disk: {}", e);
-    }
-
-    pk
 }

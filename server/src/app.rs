@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::{ticker_module::create_secp256k1_blob, utils::AppError};
+use crate::ticker_module::create_secp256k1_blob;
 use anyhow::Result;
 use axum::{
     extract::{Json, Query, State},
@@ -21,6 +21,7 @@ use hyle_smt_token::SmtTokenAction;
 use hyligotchi::{client::HyliGotchiWorld, HyliGotchi, HyliGotchiAction};
 use sdk::{Blob, BlobTransaction, ContractAction, ContractName, Identity};
 use serde::{Deserialize, Serialize};
+use server::utils::AppError;
 use tokio::sync::Mutex;
 use tower_http::cors::{Any, CorsLayer};
 

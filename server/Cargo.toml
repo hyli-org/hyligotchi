@@ -1,6 +1,15 @@
 [package]
 name = "server"
 edition = "2021"
+default-run = "server"
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+
+[[bin]]
+name = "autoprover"
+path = "src/bin/autoprover.rs"
 
 [dependencies]
 sdk = { workspace = true, features = ["tracing"] }
