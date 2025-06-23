@@ -1,6 +1,9 @@
 use crate::app::CryptoContext;
 use client_sdk::rest_client::{NodeApiClient, NodeApiHttpClient};
-use hyle_modules::modules::Module;
+use hyle_modules::{
+    module_bus_client,
+    modules::{signal::shutdown_aware, Module},
+};
 use hyligotchi::HyliGotchiAction;
 use sdk::{verifiers::Secp256k1Blob, Blob, BlobTransaction, Identity};
 use secp256k1::Message;
@@ -8,7 +11,12 @@ use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use tracing::info;
 
+module_bus_client!(
+    struct TickerBusClient {}
+);
+
 pub struct TickerModule {
+    bus: TickerBusClient,
     interval: u64,
     node_client: Arc<NodeApiHttpClient>,
     crypto_context: Arc<CryptoContext>,
@@ -18,10 +26,11 @@ impl Module for TickerModule {
     type Context = (Arc<NodeApiHttpClient>, Arc<CryptoContext>);
 
     async fn build(
-        _bus: hyle_modules::bus::SharedMessageBus,
+        bus: hyle_modules::bus::SharedMessageBus,
         ctx: Self::Context,
     ) -> anyhow::Result<Self> {
         Ok(TickerModule {
+            bus: TickerBusClient::new_from_bus(bus).await,
             interval: 600, // 10 minutes in seconds
             node_client: ctx.0,
             crypto_context: ctx.1,
@@ -35,7 +44,15 @@ impl Module for TickerModule {
 
         async move {
             loop {
-                tokio::time::sleep(tokio::time::Duration::from_secs(interval)).await;
+                if shutdown_aware::<(), _>(
+                    &mut self.bus,
+                    tokio::time::sleep(tokio::time::Duration::from_secs(interval)),
+                )
+                .await
+                .is_err()
+                {
+                    return Ok(());
+                }
 
                 info!("Executing Tick action");
                 let now = std::time::SystemTime::now()

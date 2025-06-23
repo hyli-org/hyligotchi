@@ -676,7 +676,7 @@ impl crate::client::HyliGotchiWorld {
 
         let mut rng = SipRng::seed_from_u64(seed);
 
-        let keys = self
+        let mut keys = self
             .gotchis
             .0
             .store()
@@ -685,11 +685,13 @@ impl crate::client::HyliGotchiWorld {
             .map(|(key, _)| key)
             .cloned()
             .collect::<Vec<_>>();
+        keys.sort(); // Need deterministic ordering.
 
         for key in keys {
             let Ok(mut gotchi) = self.gotchis.0.get(&key) else {
                 continue;
             };
+            info!("gotchi: {} {:?}", gotchi.name, gotchi);
             // Simulate some random activity
             gotchi.activity = if rng.random_range(0..=1) == 0 {
                 HyliGotchiActivity::Idle
@@ -732,6 +734,8 @@ impl crate::client::HyliGotchiWorld {
                 .update(key, gotchi)
                 .map_err(|e| format!("Failed to update gotchi: {}", e))?;
         }
+
+        info!("Random: {}", rng.random::<u8>());
 
         Ok(format!(
             "Tick processed successfully. Block hash: {}, Timestamp: {}, world state updated. {}",

@@ -21,7 +21,8 @@ use hyligotchi::client::{HyliGotchiWorld, HyliGotchiWorldConstructor};
 use prometheus::Registry;
 use sdk::api::NodeInfo;
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
-use sp1_sdk::{Prover, ProverClient};
+use sp1_sdk::{Prover, SP1ProvingKey};
+use std::path::Path;
 use std::sync::Arc;
 use tracing::{error, info, warn};
 
@@ -64,10 +65,7 @@ async fn main() -> Result<()> {
         IndexerApiHttpClient::new(config.indexer_url.clone()).context("build indexer client")?,
     );
 
-    let local_client = ProverClient::builder().mock().build();
-    let (pk, _) = local_client.setup(HYLI_GOTCHI_ELF);
-
-    info!("Building Proving Key");
+    let pk = load_pk(&config.data_directory);
     let prover = client_sdk::helpers::sp1::SP1Prover::new(pk).await;
 
     let secp = Secp256k1::new();
@@ -215,4 +213,31 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+pub fn load_pk(data_directory: &Path) -> SP1ProvingKey {
+    let pk_path = data_directory.join("proving_key.bin");
+
+    if pk_path.exists() {
+        info!("Loading proving key from disk");
+        return std::fs::read(&pk_path)
+            .map(|bytes| serde_json::from_slice(&bytes).expect("Failed to deserialize proving key"))
+            .expect("Failed to read proving key from disk");
+    } else if let Err(e) = std::fs::create_dir_all(data_directory) {
+        error!("Failed to create data directory: {}", e);
+    }
+
+    info!("Building proving key");
+
+    let client = sp1_sdk::ProverClient::builder().cpu().build();
+    let (pk, _) = client.setup(HYLI_GOTCHI_ELF);
+
+    if let Err(e) = std::fs::write(
+        &pk_path,
+        serde_json::to_vec(&pk).expect("Failed to serialize proving key"),
+    ) {
+        error!("Failed to save proving key to disk: {}", e);
+    }
+
+    pk
 }

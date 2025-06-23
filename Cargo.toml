@@ -25,3 +25,9 @@ repository = "https://github.com/Hyle-org/hyligotchi/"
 
 [patch.crates-io]
 sparse-merkle-tree = { git = "https://github.com/hyli-org/sparse-merkle-tree", branch = "master" }
+
+# [patch."https://github.com/Hyle-org/hyle"]
+# hyle-contract-sdk = { path = "../hyle/crates/contract-sdk", package = "hyle-contract-sdk" }
+# hyle-client-sdk = { path = "../hyle/crates/client-sdk", package = "hyle-client-sdk" }
+# hyle-smt-token = { path = "../hyle/crates/contracts/smt-token", package = "hyle-smt-token" }
+# hyle-modules = { path = "../hyle/crates/hyle-modules", package = "hyle-modules" }
