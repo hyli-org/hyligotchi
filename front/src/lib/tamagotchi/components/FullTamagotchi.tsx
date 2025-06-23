@@ -994,7 +994,16 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           naturalZoneHeight={DEVICE_CONFIG.buttons.left.height}
           onClick={() => {
             setClickedButton('left');
-            return !isWalletConnected ? () => {} : showInitPending ? () => { setShowInitPending(false); setIsInitialized(false); } : showTutorial ? () => tutorialRef.current?.handleLeftButton() : menuActions.handleZoneClick
+            if (!isWalletConnected) {
+              return;
+            } else if (showInitPending) {
+              setShowInitPending(false);
+              setIsInitialized(false);
+            } else if (showTutorial) {
+              tutorialRef.current?.handleLeftButton();
+            } else {
+              menuActions.handleZoneClick();
+            }
           }}
         />
         <ClickableZoneOverlay
@@ -1005,7 +1014,21 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           naturalZoneHeight={DEVICE_CONFIG.buttons.middle.height}
           onClick={() => {
             setClickedButton('middle');
-            return !isWalletConnected ? (onConnectWallet || (() => {})) : showInitPending ? () => { setShowInitPending(false); setIsInitialized(false); } : showTutorial ? () => tutorialRef.current?.handleMiddleButton() : (health === 'Dead' || health === 'dead') ? handleResurrect : () => {
+            if (!isWalletConnected) {
+              if (onConnectWallet) {
+                onConnectWallet();
+              }
+              return;
+            }
+            if (showInitPending) {
+              setShowInitPending(false);
+              setIsInitialized(false);
+            }
+            if (showTutorial) {
+              tutorialRef.current?.handleMiddleButton()
+            } else if (health === 'Dead' || health === 'dead') {
+              handleResurrect();
+            } else {
               menuActions.handleZone2Click();
             }
           }}
@@ -1019,7 +1042,16 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           naturalZoneHeight={DEVICE_CONFIG.buttons.right.height}
           onClick={() => {
             setClickedButton('right');
-            return !isWalletConnected ? () => {} : showInitPending ? () => { setShowInitPending(false); setIsInitialized(false); } : showTutorial ? () => tutorialRef.current?.handleRightButton() : menuActions.handleZone3Click
+            if (!isWalletConnected) {
+              return;
+            } else if (showInitPending) {
+              setShowInitPending(false);
+              setIsInitialized(false);
+            } else if (showTutorial) {
+              tutorialRef.current?.handleRightButton();
+            } else {
+              menuActions.handleZone3Click();
+            }
           }}
           backgroundColor="rgba(0, 0, 255, 0.5)"
         />
