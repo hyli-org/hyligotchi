@@ -27,6 +27,7 @@ import defaultDeviceImage from '../assets/hyligotchi-orange.png';
 import defaultDeviceImageL from '../assets/hyligotchi-orange-left.png';
 import defaultDeviceImageM from '../assets/hyligotchi-orange-middle.png';
 import defaultDeviceImageR from '../assets/hyligotchi-orange-right.png';
+import transparentDevice from '../assets/hyligotchi-orange-trans.png';;
 
 // Preload gotchi images
 const imgL=new Image();
@@ -78,14 +79,18 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
 }) => {
   const imgRef = useRef<HTMLImageElement>(null);
   const tutorialRef = useRef<TutorialScreenRef>(null);
-  
-  const [clickedButton, setClickedButton] = useState<string | null>(null);
+
+  const [clickedButton, setClickedButton] = useState<"left" | "middle" | "right" | null>(null);
   const [actualImage, setActualImage] = useState<string>(deviceImage);
   // When a button is clicked, change the image source for a couple hundred milliseconds
   useEffect(() => {
     if (clickedButton) {
-      const newSrc = deviceImage.replace('.png', `-${clickedButton}.png`);
-      setActualImage(newSrc);
+      const newSrc = {
+        "left": defaultDeviceImageL,
+        "middle": defaultDeviceImageM,
+        "right": defaultDeviceImageR
+      };
+      setActualImage(newSrc[clickedButton]);
       
       const timeoutId = setTimeout(() => {
         setActualImage(deviceImage); // Reset to original image
@@ -94,7 +99,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       
       return () => clearTimeout(timeoutId); // Cleanup on unmount or re-render
     }
-  }, [clickedButton, actualImage]);
+  }, [clickedButton, actualImage, deviceImage]);
 
   // API state management
   const [isInitialized, setIsInitialized] = useState(false);
@@ -542,7 +547,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     if (tamagotchiUsername && !hasExistingTamagotchi && tutorialCompleted) {
       createTamagotchi();
     }
-  }, [useAPI, identity, tamagotchiUsername, hasExistingTamagotchi, tutorialCompleted, setHappiness, setHunger]);
+  }, [useAPI, identity, tamagotchiUsername, hasExistingTamagotchi, tutorialCompleted, setHappiness, setHunger, updatePooState]);
 
   // Periodic sync with server
   useEffect(() => {
@@ -952,11 +957,11 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       }}>
         <img
           ref={imgRef}
-          src={`${deviceImage.replace('.png', '-trans.png')}`}
+          src={transparentDevice}
           alt="Hyligotchi Full View"
           draggable={false}
           style={{
-            backgroundImage: `url(${actualImage})`,
+            backgroundImage: `url(${actualImage}), url(${deviceImage})`,
             backgroundSize: 'contain',
             maxWidth: '100%',
             maxHeight: 'calc(100vh - 40px)',
@@ -1001,7 +1006,6 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           onClick={() => {
             setClickedButton('middle');
             return !isWalletConnected ? (onConnectWallet || (() => {})) : showInitPending ? () => { setShowInitPending(false); setIsInitialized(false); } : showTutorial ? () => tutorialRef.current?.handleMiddleButton() : (health === 'Dead' || health === 'dead') ? handleResurrect : () => {
-              console.log('Middle button clicked!');
               menuActions.handleZone2Click();
             }
           }}
