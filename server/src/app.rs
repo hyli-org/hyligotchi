@@ -434,6 +434,7 @@ async fn handle_feed_action(
     blobs: &mut Vec<Blob>,
     feed_type: FeedType,
 ) -> Result<(), AppError> {
+    /*
     let balance = get_user_token_balance(ctx, identity, feed_type.token_name()).await?;
 
     if balance < amount as u128 {
@@ -446,6 +447,7 @@ async fn handle_feed_action(
             ),
         ));
     }
+    */
 
     let transfer_action = SmtTokenAction::Transfer {
         sender: identity.clone(),
