@@ -564,6 +564,12 @@ impl HyliGotchi {
             .min(MAX_VITAMINS);
         self.last_vitamins_at = block_height;
 
+        if self.vitamins == MAX_VITAMINS && matches!(self.health, HyliGotchiHealth::Sick(_)) {
+            // If the gotchi has full vitamins, it recovers from sickness
+            self.health = HyliGotchiHealth::Healthy;
+            self.vitamins = 0;
+        }
+
         Ok(format!(
             "Gotchi {} fed {} vitamins. New vitamin level: {}",
             self.name, vitamins_amount, self.vitamins
