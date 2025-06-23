@@ -1019,12 +1019,10 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
                 onConnectWallet();
               }
               return;
-            }
-            if (showInitPending) {
+            } else if (showInitPending) {
               setShowInitPending(false);
               setIsInitialized(false);
-            }
-            if (showTutorial) {
+            } else if (showTutorial) {
               tutorialRef.current?.handleMiddleButton()
             } else if (health === 'Dead' || health === 'dead') {
               handleResurrect();
