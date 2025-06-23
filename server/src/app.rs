@@ -466,9 +466,11 @@ async fn handle_feed_action(
 struct Balance {
     #[allow(dead_code)]
     address: String,
+    #[allow(dead_code)]
     balance: u128,
 }
 
+#[allow(dead_code)]
 async fn get_user_token_balance(
     ctx: &RouterCtx,
     identity: &Identity,
