@@ -89,7 +89,7 @@ impl Module for AppModule {
 
     async fn run(&mut self) -> Result<()> {
         module_handle_messages! {
-            on_bus self.bus,
+            on_self self,
         };
 
         Ok(())

@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use anyhow::{Context, Result};
+use axum::Router;
 use clap::Parser;
 use client_sdk::rest_client::NodeApiHttpClient;
 use hyle_modules::{
@@ -92,6 +93,7 @@ async fn main() -> Result<()> {
                 buffer_blocks: config.buffer_blocks,
                 max_txs_per_proof: config.max_txs_per_proof,
                 tx_working_window_size: config.tx_working_window_size,
+                api: Some(api_ctx.clone()),
             }
             .into(),
         )
