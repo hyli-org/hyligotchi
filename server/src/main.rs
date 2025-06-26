@@ -46,6 +46,9 @@ pub struct Args {
     // /// If set, the process will initialize the prover and start the prover module.
     pub prover: std::primitive::bool,
 
+    #[arg(long, default_value = "false")]
+    pub noinit: bool,
+
     #[clap(long, action)]
     /// If set, the process will exit after initialization and cleanup the data directory.
     pub cleanup: bool,
@@ -97,18 +100,22 @@ async fn main() -> Result<()> {
 
     let world = HyliGotchiWorld::new(&constructor);
 
-    let contracts = vec![init::ContractInit {
-        name: args.contract_name.clone().into(),
-        program_id: prover.program_id().expect("getting program id").0,
-        initial_state: world.get_state_commitment(),
-        constructor_metadata: Some(borsh::to_vec(&constructor).context("encoding constructor")?),
-    }];
+    if !args.noinit {
+        let contracts = vec![init::ContractInit {
+            name: args.contract_name.clone().into(),
+            program_id: prover.program_id().expect("getting program id").0,
+            initial_state: world.get_state_commitment(),
+            constructor_metadata: Some(
+                borsh::to_vec(&constructor).context("encoding constructor")?,
+            ),
+        }];
 
-    match init::init_node(node_client.clone(), indexer_client.clone(), contracts).await {
-        Ok(_) => {}
-        Err(e) => {
-            error!("Error initializing node: {:?}", e);
-            return Ok(());
+        match init::init_node(node_client.clone(), indexer_client.clone(), contracts).await {
+            Ok(_) => {}
+            Err(e) => {
+                error!("Error initializing node: {:?}", e);
+                return Ok(());
+            }
         }
     }
 
