@@ -661,7 +661,7 @@ fn check_tick_commitment(
 // Permissioned and run only on the handler.
 #[cfg(feature = "client")]
 impl crate::client::HyliGotchiWorld {
-    fn tick(
+    pub fn tick(
         &mut self,
         block_hash: &sdk::ConsensusProposalHash,
         block_height: u64,
