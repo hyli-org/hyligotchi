@@ -194,6 +194,7 @@ impl ContractHandler for HyliGotchiWorld {
     async fn api(store: ContractHandlerStore<HyliGotchiWorld>) -> (Router<()>, OpenApi) {
         let (router, api) = OpenApiRouter::default()
             .routes(routes!(get_state))
+            .routes(routes!(get_metadata))
             .split_for_parts();
 
         (router.with_state(store), api)
@@ -238,6 +239,7 @@ pub async fn get_state(
 ) -> Result<impl IntoResponse, AppError> {
     let auth_headers = AuthHeaders::from_headers(&headers)?;
     let store = state.read().await;
+
     store
         .state
         .clone()
@@ -253,6 +255,43 @@ pub async fn get_state(
                 },
                 Err(_) => None, // Error retrieving gotchi
             }
+        })
+        .map(Json)
+        .ok_or(AppError(
+            StatusCode::NOT_FOUND,
+            anyhow!("No state found for contract '{}'", store.contract_name),
+        ))
+}
+
+#[serde_with::serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Metadata {
+    pub last_block_height: u64,
+    pub last_block_hash: ConsensusProposalHash,
+    #[serde_as(as = "[_; 33]")]
+    pub backend_pubkey: BackendPubKey,
+}
+
+#[utoipa::path(
+    get,
+    path = "/metadata",
+    tag = "Contract",
+    responses(
+        (status = OK, description = "Get json metadata of contract")
+    )
+)]
+pub async fn get_metadata(
+    State(state): State<ContractHandlerStore<HyliGotchiWorld>>,
+) -> Result<impl IntoResponse, AppError> {
+    let store = state.read().await;
+
+    store
+        .state
+        .clone()
+        .map(|s| Metadata {
+            last_block_height: s.last_block_height,
+            last_block_hash: s.last_block_hash,
+            backend_pubkey: s.backend_pubkey,
         })
         .map(Json)
         .ok_or(AppError(

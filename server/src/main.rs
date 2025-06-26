@@ -30,6 +30,7 @@ use crate::ticker_module::TickerModule;
 mod app;
 mod init;
 mod ticker_module;
+mod utils;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]

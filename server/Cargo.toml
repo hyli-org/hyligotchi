@@ -11,6 +11,10 @@ path = "src/main.rs"
 name = "autoprover"
 path = "src/bin/autoprover.rs"
 
+[[bin]]
+name = "state_updater"
+path = "src/bin/state_updater.rs"
+
 [dependencies]
 sdk = { workspace = true, features = ["tracing"] }
 client-sdk = { workspace = true, features = ["sp1", "rest"] }
