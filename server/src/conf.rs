@@ -17,6 +17,8 @@ pub struct Conf {
     pub node_url: String,
     pub indexer_url: String,
 
+    pub prover: bool,
+
     pub rest_server_port: u16,
     pub rest_server_max_body_size: usize,
 

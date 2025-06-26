@@ -43,10 +43,6 @@ pub struct Args {
     /// The name of the contract to initialize.
     pub contract_name: String,
 
-    #[arg(short, long, default_value = "true")]
-    // /// If set, the process will initialize the prover and start the prover module.
-    pub prover: std::primitive::bool,
-
     #[arg(long, default_value = "false")]
     pub noinit: bool,
 
@@ -169,7 +165,7 @@ async fn main() -> Result<()> {
         })
         .await?;
 
-    if args.prover {
+    if config.prover {
         info!("Prover module enabled, initializing...");
         handler
             .build_module::<AutoProver<HyliGotchiWorld>>(
