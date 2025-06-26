@@ -42,11 +42,12 @@ async fn main() -> Result<()> {
     info!("Starting autoprover with config: {:?}", &config);
 
     let node_client = NodeApiHttpClient::new(config.node_url.clone())?;
-    let indexer_client = IndexerApiHttpClient::new(config.node_url.clone())?;
+    let indexer_client = IndexerApiHttpClient::new(config.indexer_url.clone())?;
 
     let pk = load_pk(&config.data_directory);
     let prover = client_sdk::helpers::sp1::SP1Prover::new(pk).await;
 
+    tracing::info!("Setting up crypto context");
     let secp = Secp256k1::new();
     let secret_key =
         hex::decode(std::env::var("HYLIGOTCHI_PUBKEY").unwrap_or(
@@ -63,10 +64,12 @@ async fn main() -> Result<()> {
         public_key,
     };
 
+    tracing::info!("Getting initial state");
     let initial_state = indexer_client
         .get_indexer_contract(&ContractName::new(args.contract_name.clone()))
         .await?
         .state_commitment;
+    tracing::info!("Initial state: {:?}", hex::encode(initial_state.clone()));
 
     let metadata = reqwest::get(format!(
         "{}/v1/indexer/contract/{}/metadata",
@@ -76,11 +79,17 @@ async fn main() -> Result<()> {
     .json::<Metadata>()
     .await?;
 
+    tracing::info!("Metadata: {:?}", metadata);
     let commitment_metadata = build_commitment_metadata(
         StateCommitment(initial_state),
         StateCommitment(hex::decode(args.commitment).unwrap()),
         metadata,
     )?;
+
+    tracing::info!(
+        "Commitment metadata: {:?}",
+        hex::encode(commitment_metadata.clone())
+    );
 
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -101,7 +110,7 @@ async fn main() -> Result<()> {
     let identity = Identity::new("hyligtochi_server@secp256k1");
 
     let blob_tx = BlobTransaction::new(identity.clone(), blobs.clone());
-
+    tracing::info!("Sending Blob TX: {:?}", blob_tx);
     let tx_hash = node_client.send_tx_blob(blob_tx.clone()).await?;
     tracing::info!("Blob TX hash: {}", tx_hash);
 
