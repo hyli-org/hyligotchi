@@ -57,8 +57,9 @@ async fn main() -> Result<()> {
     opentelemetry::global::set_meter_provider(provider.clone());
 
     let mut handler = ModulesHandler::new(&bus).await;
+
     let api_ctx = Arc::new(BuildApiContextInner {
-        router: Mutex::new(None),
+        router: Mutex::new(Some(Router::new())),
         openapi: Default::default(),
     });
 

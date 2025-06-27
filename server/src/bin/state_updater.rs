@@ -114,7 +114,7 @@ async fn main() -> Result<()> {
     let tx_hash = node_client.send_tx_blob(blob_tx.clone()).await?;
     tracing::info!("Blob TX hash: {}", tx_hash);
 
-    timeout(Duration::from_secs(30), async {
+    timeout(Duration::from_secs(600), async {
         loop {
             let resp = indexer_client.get_transaction_with_hash(&tx_hash).await;
             if resp.is_err() {
