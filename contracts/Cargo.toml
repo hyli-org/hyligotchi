@@ -14,3 +14,6 @@ sp1-sdk = { workspace = true }
 
 [build-dependencies]
 sp1-helper = { workspace = true }
+
+[features]
+build = []
