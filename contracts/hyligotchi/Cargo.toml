@@ -18,6 +18,7 @@ serde = { version = "1.0", default-features = false, features = [
 ] }
 borsh = { version = "1.5.7" }
 uuid = { version = "1.6", features = ["serde"], default-features = false }
+hex = "0.4.3"
 
 sp1-zkvm = { workspace = true, optional = true }
 client-sdk = { workspace = true, default-features = false, features = [

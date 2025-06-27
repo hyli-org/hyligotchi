@@ -15,7 +15,9 @@ use client_sdk::contract_indexer::{
     AppError, ContractHandler, ContractHandlerStore,
 };
 use client_sdk::transaction_builder::TxExecutorHandler;
-use sdk::{utils::as_hyle_output, Blob, Calldata, ConsensusProposalHash, RegisterContractEffect};
+use sdk::{
+    tracing, utils::as_hyle_output, Blob, Calldata, ConsensusProposalHash, RegisterContractEffect,
+};
 
 use client_sdk::contract_indexer::axum;
 use client_sdk::contract_indexer::utoipa;
@@ -107,15 +109,15 @@ impl TxExecutorHandler for HyliGotchiWorld {
         next: Vec<u8>,
     ) -> anyhow::Result<Vec<u8>, String> {
         let initial_view: HyliGotchiWorldZkView = borsh::from_slice(&initial)
-            .map_err(|e| format!("Failed to deserialize initial view: {}", e))?;
+            .map_err(|e| format!("Failed to deserialize initial view: {e}"))?;
         let mut next_view: HyliGotchiWorldZkView = borsh::from_slice(&next)
-            .map_err(|e| format!("Failed to deserialize next view: {}", e))?;
+            .map_err(|e| format!("Failed to deserialize next view: {e}"))?;
 
         next_view.partial_data.extend(initial_view.partial_data);
         next_view.commitment = initial_view.commitment;
         next_view.tick_data = next_view.tick_data.or(initial_view.tick_data);
 
-        borsh::to_vec(&next_view).map_err(|e| format!("Failed to serialize combined view: {}", e))
+        borsh::to_vec(&next_view).map_err(|e| format!("Failed to serialize combined view: {e}"))
     }
 
     fn get_state_commitment(&self) -> StateCommitment {
@@ -140,6 +142,23 @@ impl TxExecutorHandler for HyliGotchiWorld {
                 self.last_block_hash = tx_ctx.block_hash.clone();
                 self.last_block_height = tx_ctx.block_height.0;
             }
+
+            if calldata.tx_hash
+                == sdk::TxHash(
+                    "aa361866f8783cde596772e12086317a809463e3580de4d9d57e1e9a45085ced".to_string(),
+                )
+            {
+                tracing::warn!("Resetting contract state to initial state");
+                // This TxHash was resetting the contract state to the initial state
+                // We need to reset the actual contract state to this initial state
+                let constructor = HyliGotchiWorldConstructor {
+                    backend_pubkey: self.backend_pubkey,
+                };
+
+                let world = HyliGotchiWorld::new(&constructor);
+                *self = world;
+            }
+
             return Ok(as_hyle_output(
                 initial_state_commitment,
                 get_state_commitment(*self.gotchis.0.root(), self.backend_pubkey),
