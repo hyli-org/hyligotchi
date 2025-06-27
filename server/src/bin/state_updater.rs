@@ -3,8 +3,12 @@ use std::{sync::Arc, time::Duration};
 use anyhow::{Context, Result};
 use clap::Parser;
 use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiClient, NodeApiHttpClient};
+use client_sdk::transaction_builder::TxExecutorHandler;
 use hyle_modules::utils::logger::setup_tracing;
-use hyligotchi::{client::Metadata, HyliGotchiAction, HyliGotchiWorldZkView};
+use hyligotchi::{
+    client::{HyliGotchiWorld, HyliGotchiWorldConstructor, Metadata},
+    HyliGotchiAction, HyliGotchiWorldZkView,
+};
 use sdk::{
     info, BlobIndex, BlobTransaction, BlockHeight, Calldata, ConsensusProposalHash, ContractName,
     Hashed, Identity, ProofTransaction, StateCommitment, TxContext, HYLE_TESTNET_CHAIN_ID,
@@ -24,9 +28,6 @@ pub struct Args {
 
     #[arg(long, default_value = "http://localhost:4008")]
     pub rest_url: String,
-
-    #[arg(long, required = true)]
-    pub commitment: String,
 }
 
 #[tokio::main]
@@ -64,6 +65,17 @@ async fn main() -> Result<()> {
         public_key,
     };
 
+    let constructor = HyliGotchiWorldConstructor {
+        backend_pubkey: public_key.serialize(),
+    };
+
+    let world = HyliGotchiWorld::new(&constructor);
+    let new_initial_state = world.get_state_commitment();
+
+    tracing::info!(
+        "New initial state will be: {:?}",
+        hex::encode(new_initial_state.0.clone())
+    );
     tracing::info!("Getting initial state");
     let initial_state = indexer_client
         .get_indexer_contract(&ContractName::new(args.contract_name.clone()))
@@ -80,11 +92,8 @@ async fn main() -> Result<()> {
     .await?;
 
     tracing::info!("Metadata: {:?}", metadata);
-    let commitment_metadata = build_commitment_metadata(
-        StateCommitment(initial_state),
-        StateCommitment(hex::decode(args.commitment).unwrap()),
-        metadata,
-    )?;
+    let commitment_metadata =
+        build_commitment_metadata(StateCommitment(initial_state), new_initial_state, metadata)?;
 
     tracing::info!(
         "Commitment metadata: {:?}",
