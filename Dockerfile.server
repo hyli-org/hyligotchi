@@ -10,7 +10,7 @@ COPY ./elf ./elf
 COPY Cargo.toml . 
 COPY Cargo.lock .
 
-RUN cargo build --bin server --release
+RUN cargo build --bin server --bin autoprover --release
 
 # RUNNER
 FROM rust:1.85
