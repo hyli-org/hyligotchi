@@ -10,7 +10,8 @@ COPY ./elf ./elf
 COPY Cargo.toml . 
 COPY Cargo.lock .
 
-RUN cargo build --bin server --bin autoprover --release
+# Disable default features to avoid overwriting the ELF.
+RUN cargo build --no-default-features --bin server --bin autoprover --release
 
 # RUNNER
 FROM rust:1.85

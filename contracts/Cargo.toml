@@ -16,4 +16,5 @@ sp1-sdk = { workspace = true }
 sp1-helper = { workspace = true }
 
 [features]
+default = ["build"]
 build = []
