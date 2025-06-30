@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use crate::{ticker_module::create_secp256k1_blob, utils::AppError};
 use anyhow::Result;
@@ -13,7 +13,7 @@ use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiClient, NodeApiHttpCl
 
 use axum::extract::Path;
 use hyle_modules::{
-    bus::{BusClientReceiver, SharedMessageBus},
+    bus::SharedMessageBus,
     module_bus_client, module_handle_messages,
     modules::{prover::AutoProverEvent, BuildApiContextInner, Module},
 };
@@ -21,7 +21,6 @@ use hyle_smt_token::SmtTokenAction;
 use hyligotchi::{client::HyliGotchiWorld, HyliGotchi, HyliGotchiAction};
 use sdk::{Blob, BlobTransaction, ContractAction, ContractName, Identity};
 use serde::{Deserialize, Serialize};
-use tokio::sync::Mutex;
 use tower_http::cors::{Any, CorsLayer};
 
 pub struct AppModule {
@@ -49,9 +48,6 @@ impl Module for AppModule {
     async fn build(bus: SharedMessageBus, ctx: Self::Context) -> Result<Self> {
         let state = RouterCtx {
             hyligotchi_cn: ctx.hyligotchi_cn.clone(),
-            app: Arc::new(Mutex::new(HyleOofCtx {
-                bus: bus.new_handle(),
-            })),
             client: ctx.node_client.clone(),
             indexer_client: ctx.indexer_client.clone(),
             crypto_context: ctx.crypto_context.clone(),
@@ -104,15 +100,10 @@ pub struct CryptoContext {
 
 #[derive(Clone)]
 pub struct RouterCtx {
-    pub app: Arc<Mutex<HyleOofCtx>>,
     pub client: Arc<NodeApiHttpClient>,
     pub indexer_client: Arc<IndexerApiHttpClient>,
     pub hyligotchi_cn: ContractName,
     pub crypto_context: Arc<CryptoContext>,
-}
-
-pub struct HyleOofCtx {
-    pub bus: SharedMessageBus,
 }
 
 async fn health() -> impl IntoResponse {
