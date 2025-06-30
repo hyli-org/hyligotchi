@@ -397,34 +397,7 @@ async fn send(
         .send_tx_blob(BlobTransaction::new(identity.clone(), blobs))
         .await?;
 
-    let mut bus = {
-        let app = ctx.app.lock().await;
-        AppModuleBusClient::new_from_bus(app.bus.new_handle()).await
-    };
-
-    tokio::time::timeout(Duration::from_secs(5), async {
-        loop {
-            let a = bus.recv().await?;
-            match a {
-                AutoProverEvent::SuccessTx(sequenced_tx_hash, state) => {
-                    if sequenced_tx_hash == tx_hash {
-                        // let balance = state.balances.get(&identity).copied().unwrap_or(0);
-                        let gotchi: ApiGotchi = state.get(&identity).unwrap_or_default().into();
-                        return Ok(Json(ApiResponse {
-                            gotchi,
-                            tx_hash: tx_hash.to_string(),
-                        }));
-                    }
-                }
-                AutoProverEvent::FailedTx(sequenced_tx_hash, error) => {
-                    if sequenced_tx_hash == tx_hash {
-                        return Err(AppError(StatusCode::BAD_REQUEST, anyhow::anyhow!(error)));
-                    }
-                }
-            }
-        }
-    })
-    .await?
+    Ok(tx_hash.0.into_response())
 }
 
 async fn handle_feed_action(
