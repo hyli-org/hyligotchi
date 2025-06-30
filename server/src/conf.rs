@@ -26,6 +26,8 @@ pub struct Conf {
     pub max_txs_per_proof: usize,
     pub tx_working_window_size: usize,
 
+    pub tick_interval_secs: u64,
+
     /// Websocket configuration
     pub websocket: WebSocketConfig,
 }

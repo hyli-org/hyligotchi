@@ -23,7 +23,7 @@ pub struct TickerModule {
 }
 
 impl Module for TickerModule {
-    type Context = (Arc<NodeApiHttpClient>, Arc<CryptoContext>);
+    type Context = (Arc<NodeApiHttpClient>, Arc<CryptoContext>, u64);
 
     async fn build(
         bus: hyle_modules::bus::SharedMessageBus,
@@ -31,7 +31,7 @@ impl Module for TickerModule {
     ) -> anyhow::Result<Self> {
         Ok(TickerModule {
             bus: TickerBusClient::new_from_bus(bus).await,
-            interval: 600, // 10 minutes in seconds
+            interval: ctx.2, // 10 minutes in seconds
             node_client: ctx.0,
             crypto_context: ctx.1,
         })

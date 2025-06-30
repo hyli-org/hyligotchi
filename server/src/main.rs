@@ -227,7 +227,11 @@ async fn main() -> Result<()> {
         .await?;
 
     handler
-        .build_module::<TickerModule>((app_ctx.node_client.clone(), app_ctx.crypto_context.clone()))
+        .build_module::<TickerModule>((
+            app_ctx.node_client.clone(),
+            app_ctx.crypto_context.clone(),
+            config.tick_interval_secs,
+        ))
         .await?;
 
     handler.start_modules().await?;
