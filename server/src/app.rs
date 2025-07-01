@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use crate::{ticker_module::create_secp256k1_blob, utils::AppError};
 use anyhow::Result;
@@ -13,7 +13,7 @@ use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiClient, NodeApiHttpCl
 
 use axum::extract::Path;
 use hyle_modules::{
-    bus::SharedMessageBus,
+    bus::{BusClientReceiver, SharedMessageBus},
     module_bus_client, module_handle_messages,
     modules::{prover::AutoProverEvent, BuildApiContextInner, Module},
 };
@@ -21,6 +21,7 @@ use hyle_smt_token::SmtTokenAction;
 use hyligotchi::{client::HyliGotchiWorld, HyliGotchi, HyliGotchiAction};
 use sdk::{Blob, BlobTransaction, ContractAction, ContractName, Identity};
 use serde::{Deserialize, Serialize};
+use tokio::sync::Mutex;
 use tower_http::cors::{Any, CorsLayer};
 
 pub struct AppModule {
@@ -48,6 +49,9 @@ impl Module for AppModule {
     async fn build(bus: SharedMessageBus, ctx: Self::Context) -> Result<Self> {
         let state = RouterCtx {
             hyligotchi_cn: ctx.hyligotchi_cn.clone(),
+            app: Arc::new(Mutex::new(HyleOofCtx {
+                bus: bus.new_handle(),
+            })),
             client: ctx.node_client.clone(),
             indexer_client: ctx.indexer_client.clone(),
             crypto_context: ctx.crypto_context.clone(),
@@ -100,10 +104,15 @@ pub struct CryptoContext {
 
 #[derive(Clone)]
 pub struct RouterCtx {
+    pub app: Arc<Mutex<HyleOofCtx>>,
     pub client: Arc<NodeApiHttpClient>,
     pub indexer_client: Arc<IndexerApiHttpClient>,
     pub hyligotchi_cn: ContractName,
     pub crypto_context: Arc<CryptoContext>,
+}
+
+pub struct HyleOofCtx {
+    pub bus: SharedMessageBus,
 }
 
 async fn health() -> impl IntoResponse {
@@ -388,7 +397,34 @@ async fn send(
         .send_tx_blob(BlobTransaction::new(identity.clone(), blobs))
         .await?;
 
-    Ok(tx_hash.0.into_response())
+    let mut bus = {
+        let app = ctx.app.lock().await;
+        AppModuleBusClient::new_from_bus(app.bus.new_handle()).await
+    };
+
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let a = bus.recv().await?;
+            match a {
+                AutoProverEvent::SuccessTx(sequenced_tx_hash, state) => {
+                    if sequenced_tx_hash == tx_hash {
+                        // let balance = state.balances.get(&identity).copied().unwrap_or(0);
+                        let gotchi: ApiGotchi = state.get(&identity).unwrap_or_default().into();
+                        return Ok(Json(ApiResponse {
+                            gotchi,
+                            tx_hash: tx_hash.to_string(),
+                        }));
+                    }
+                }
+                AutoProverEvent::FailedTx(sequenced_tx_hash, error) => {
+                    if sequenced_tx_hash == tx_hash {
+                        return Err(AppError(StatusCode::BAD_REQUEST, anyhow::anyhow!(error)));
+                    }
+                }
+            }
+        }
+    })
+    .await?
 }
 
 async fn handle_feed_action(
