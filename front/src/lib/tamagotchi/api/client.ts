@@ -112,7 +112,7 @@ class HyligotchiAPIClient {
 
   async getState(): Promise<ApiGotchi | null> {
     try {
-      const response = await fetch(`${this.baseUrl}/v1/indexer/contract/hyligotchi/state`, {
+      const response = await fetch(`${this.baseUrl}/v1/indexer/contract/hyligotchi2/state`, {
         headers: {
           'X-identity': this.identity || '',
         },

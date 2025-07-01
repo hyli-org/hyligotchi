@@ -36,6 +36,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 pub fn load_pk(data_directory: &Path) -> SP1ProvingKey {
     let pk_path = data_directory.join("proving_key.bin");
 
