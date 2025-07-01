@@ -2,7 +2,6 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::{bail, Result};
 use client_sdk::rest_client::NodeApiClient;
-use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiHttpClient};
 use sdk::{api::APIRegisterContract, info, ContractName, ProgramId, StateCommitment};
 use tokio::time::timeout;
 
@@ -13,32 +12,24 @@ pub struct ContractInit {
     pub constructor_metadata: Option<Vec<u8>>,
 }
 
-pub async fn init_node(
-    node: Arc<NodeApiHttpClient>,
-    indexer: Arc<IndexerApiHttpClient>,
-    contracts: Vec<ContractInit>,
-) -> Result<()> {
+pub async fn init_node(node: Arc<dyn NodeApiClient>, contracts: Vec<ContractInit>) -> Result<()> {
     for contract in contracts {
-        init_contract(&node, &indexer, contract).await?;
+        init_contract(node.as_ref(), contract).await?;
     }
     Ok(())
 }
 
-async fn init_contract(
-    node: &NodeApiHttpClient,
-    indexer: &IndexerApiHttpClient,
-    contract: ContractInit,
-) -> Result<()> {
-    match indexer.get_indexer_contract(&contract.name).await {
+async fn init_contract(node: &dyn NodeApiClient, contract: ContractInit) -> Result<()> {
+    match node.get_contract(contract.name.clone()).await {
         Ok(existing) => {
-            let onchain_program_id = hex::encode(existing.program_id.as_slice());
-            let program_id = hex::encode(contract.program_id);
+            let onchain_program_id = existing.program_id.0;
+            let program_id = contract.program_id;
             if onchain_program_id != program_id {
                 bail!(
                     "Invalid program_id for {}. On-chain version is {}, expected {}",
                     contract.name,
-                    onchain_program_id,
-                    program_id
+                    hex::encode(onchain_program_id),
+                    hex::encode(program_id)
                 );
             }
             info!("✅ {} contract is up to date", contract.name);
@@ -54,20 +45,20 @@ async fn init_contract(
                 ..Default::default()
             })
             .await?;
-            wait_contract_state(indexer, &contract.name).await?;
+            wait_contract_state(node, &contract.name).await?;
         }
     }
     Ok(())
 }
 async fn wait_contract_state(
-    indexer: &IndexerApiHttpClient,
-    contract: &ContractName,
+    node: &dyn NodeApiClient,
+    contract_name: &ContractName,
 ) -> anyhow::Result<()> {
     timeout(Duration::from_secs(30), async {
         loop {
-            let resp = indexer.get_indexer_contract(contract).await;
+            let resp = node.get_contract(contract_name.clone()).await;
             if resp.is_err() {
-                info!("⏰ Waiting for contract {contract} state to be ready");
+                info!("⏰ Waiting for contract {contract_name} state to be ready");
                 tokio::time::sleep(Duration::from_millis(500)).await;
             } else {
                 return Ok(());

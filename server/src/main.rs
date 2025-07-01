@@ -4,7 +4,7 @@ use axum::Router;
 use clap::Parser;
 use client_sdk::helpers::test::TxExecutorTestProver;
 use client_sdk::helpers::ClientSdkProver;
-use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiHttpClient};
+use client_sdk::rest_client::NodeApiHttpClient;
 use client_sdk::transaction_builder::TxExecutorHandler;
 use hyle_modules::{
     bus::{metrics::BusMetrics, SharedMessageBus},
@@ -79,9 +79,6 @@ async fn main() -> Result<()> {
 
     let node_client =
         Arc::new(NodeApiHttpClient::new(config.node_url.clone()).context("build node client")?);
-    let indexer_client = Arc::new(
-        IndexerApiHttpClient::new(config.indexer_url.clone()).context("build indexer client")?,
-    );
 
     let pk = load_pk(&config.data_directory);
     let program_id = serde_json::to_vec(&pk.vk)?; // Done manually to allow turning off SP1
@@ -112,7 +109,7 @@ async fn main() -> Result<()> {
             ),
         }];
 
-        match init::init_node(node_client.clone(), indexer_client.clone(), contracts).await {
+        match init::init_node(node_client.clone(), contracts).await {
             Ok(_) => {}
             Err(e) => {
                 error!("Error initializing node: {:?}", e);
@@ -156,7 +153,6 @@ async fn main() -> Result<()> {
     let app_ctx = Arc::new(AppModuleCtx {
         api: build_api_ctx.clone(),
         node_client,
-        indexer_client,
         hyligotchi_cn: args.contract_name.into(),
         crypto_context: Arc::new(crypto_context),
     });

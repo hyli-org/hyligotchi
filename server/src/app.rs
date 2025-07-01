@@ -9,7 +9,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiClient, NodeApiHttpClient};
+use client_sdk::rest_client::{NodeApiClient, NodeApiHttpClient};
 
 use axum::extract::Path;
 use hyle_modules::{
@@ -31,7 +31,6 @@ pub struct AppModule {
 pub struct AppModuleCtx {
     pub api: Arc<BuildApiContextInner>,
     pub node_client: Arc<NodeApiHttpClient>,
-    pub indexer_client: Arc<IndexerApiHttpClient>,
     pub hyligotchi_cn: ContractName,
     pub crypto_context: Arc<CryptoContext>,
 }
@@ -53,7 +52,6 @@ impl Module for AppModule {
                 bus: bus.new_handle(),
             })),
             client: ctx.node_client.clone(),
-            indexer_client: ctx.indexer_client.clone(),
             crypto_context: ctx.crypto_context.clone(),
         };
 
@@ -106,7 +104,6 @@ pub struct CryptoContext {
 pub struct RouterCtx {
     pub app: Arc<Mutex<HyleOofCtx>>,
     pub client: Arc<NodeApiHttpClient>,
-    pub indexer_client: Arc<IndexerApiHttpClient>,
     pub hyligotchi_cn: ContractName,
     pub crypto_context: Arc<CryptoContext>,
 }
@@ -434,21 +431,6 @@ async fn handle_feed_action(
     blobs: &mut Vec<Blob>,
     feed_type: FeedType,
 ) -> Result<(), AppError> {
-    /*
-    let balance = get_user_token_balance(ctx, identity, feed_type.token_name()).await?;
-
-    if balance < amount as u128 {
-        return Err(AppError(
-            StatusCode::BAD_REQUEST,
-            anyhow::anyhow!(
-                "Insufficient balance. Current balance is {} while deposit is {}",
-                balance,
-                amount
-            ),
-        ));
-    }
-    */
-
     let transfer_action = SmtTokenAction::Transfer {
         sender: identity.clone(),
         recipient: ctx.hyligotchi_cn.0.clone().into(),
@@ -460,30 +442,4 @@ async fn handle_feed_action(
     blobs.push(transfer_action.as_blob(feed_type.token_name().into(), None, None));
 
     Ok(())
-}
-
-#[derive(Deserialize)]
-struct Balance {
-    #[allow(dead_code)]
-    address: String,
-    #[allow(dead_code)]
-    balance: u128,
-}
-
-#[allow(dead_code)]
-async fn get_user_token_balance(
-    ctx: &RouterCtx,
-    identity: &Identity,
-    token_name: &str,
-) -> Result<u128, AppError> {
-    let balance = reqwest::get(&format!(
-        "{}/v1/indexer/contract/{}/balance/{}",
-        ctx.indexer_client.url, token_name, &identity.0
-    ))
-    .await
-    .map_err(|e| AppError(StatusCode::INTERNAL_SERVER_ERROR, anyhow::anyhow!(e)))?
-    .json::<Balance>()
-    .await?;
-
-    Ok(balance.balance)
 }
