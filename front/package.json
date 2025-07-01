@@ -1,6 +1,6 @@
 {
   "name": "hyligotchi-js",
-  "version": "1.2.2",
+  "version": "1.2.4",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",

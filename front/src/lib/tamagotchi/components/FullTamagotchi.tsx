@@ -154,6 +154,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
   // Track tutorial step for z-index management
   const [tutorialStep, setTutorialStep] = useState(0);
   const [lastButtonClick, setLastButtonClick] = useState(0);
+  const [isResurrecting, setIsResurrecting] = useState(false);
   
   // Debounced button handler to prevent rapid clicks
   const handleButtonClick = (callback: () => void) => {
@@ -389,50 +390,26 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     }
   };
 
-  // Handle resurrect with optimistic updates
+  // Handle resurrect - send transaction and show pending state
   const handleResurrect = async () => {
     if (!useAPI || !identity || !isInitialized) {
       return;
     }
     
-    // Optimistically resurrect
-    setHealth('Healthy');
-    setHappiness(5);
-    setHunger(5);
-    setShowPoo(false);
-    setNeedsCleaning(false);
-    setActionWithTimeout('Resurrecting...');
+    // Set resurrecting state
+    setIsResurrecting(true);
     
     try {
-      const apiGotchi = await apiClient.resurrect(createIdentityBlobs);
+      await apiClient.resurrect(createIdentityBlobs);
       
       // Show transaction notification
       const txHash = apiClient.getLastTxHash();
       if (txHash) {
         setCurrentTxHash(txHash);
       }
-      
-      // Update stats from API response
-      const gameStats = apiResponseToGameState(apiGotchi);
-      setHappiness(gameStats.happiness);
-      setHunger(gameStats.hunger);
-      if (apiGotchi.health) {
-        setHealth(parseHealthStatus(apiGotchi.health));
-      }
-      updatePooState(apiGotchi);
-      updateBornAt(apiGotchi);
-      
-      setActionWithTimeout('Resurrected!');
-      
-      // Refresh state after a moment
-      setTimeout(async () => {
-        await refreshStateFromAPI();
-      }, 1000);
     } catch (err) {
       console.error('Resurrect error:', err);
-      setActionWithTimeout('Failed to resurrect');
-      // Refresh state from server on error
-      await refreshStateFromAPI();
+      // Still stay in resurrecting state even on error
     }
   };
 
@@ -610,7 +587,7 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
       } catch (err) {
         console.error('Sync error:', err);
       }
-    }, 30000); // Sync every 30 seconds
+    }, 300000); // Sync every 5 minutes
     
     return () => clearInterval(syncInterval);
   }, [useAPI, identity, isInitialized, setHappiness, setHunger, setHealth]);
@@ -711,8 +688,8 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
     }
     
     // Show death screen if dead
-    if (health === 'Dead' || health === 'dead') {
-      return <DeathScreen username={tamagotchiUsername} onResurrect={handleResurrect} />;
+    if (health === 'Dead' || health === 'dead' || isResurrecting) {
+      return <DeathScreen username={tamagotchiUsername} onResurrect={handleResurrect} isResurrecting={isResurrecting} />;
     }
     
     if (menuState.inFoodMenu) {
@@ -1054,8 +1031,10 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
                 setIsInitialized(false);
               } else if (showTutorial) {
                 tutorialRef.current?.handleMiddleButton()
-              } else if (health === 'Dead' || health === 'dead') {
+              } else if ((health === 'Dead' || health === 'dead') && !isResurrecting) {
                 handleResurrect();
+              } else if (isResurrecting) {
+                // Do nothing - already resurrecting
               } else {
                 menuActions.handleZone2Click();
               }

@@ -4,9 +4,10 @@ import deadSvg from '../../assets/dead.svg';
 interface DeathScreenProps {
   username?: string;
   onResurrect?: () => void;
+  isResurrecting?: boolean;
 }
 
-const DeathScreen: React.FC<DeathScreenProps> = () => {
+const DeathScreen: React.FC<DeathScreenProps> = ({ isResurrecting = false }) => {
   return (
     <div style={{
       width: '100%',
@@ -83,15 +84,28 @@ const DeathScreen: React.FC<DeathScreenProps> = () => {
         </div>
       )} */}
       
-      {/* Instructions */}
+      {/* Instructions or Pending Message */}
       <div style={{
         position: 'absolute',
         bottom: '10px',
         fontSize: 'calc(min(0.8vw, 0.8vh) * 1.5)',
         opacity: 1,
-
+        color: '#000000',
       }}>
-        Press middle button to resurrect
+        {isResurrecting ? (
+          <>
+            <div style={{ marginBottom: '10px' }}>
+              Resurrection ritual in progress...
+            </div>
+            <div style={{ fontSize: 'calc(min(0.7vw, 0.7vh) * 1.5)', opacity: 0.8 }}>
+              Your Hyligotchi is being brought back to life.
+              <br />
+              Check back soon!
+            </div>
+          </>
+        ) : (
+          'Press middle button to resurrect'
+        )}
       </div>
     </div>
   );
