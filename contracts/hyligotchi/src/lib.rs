@@ -102,7 +102,7 @@ impl sdk::ZkContract for HyliGotchiWorldZkView {
             .0
             .clone()
             .verify::<SHA256Hasher>(&root, leaves.clone())
-            .map_err(|e| format!("Failed to verify proof: {}", e))?;
+            .map_err(|e| format!("Failed to verify proof: {e}"))?;
         if self.commitment != get_state_commitment(root, self.backend_pubkey) {
             panic!(
                 "State commitment mismatch: expected {:?}, got {:?}",
@@ -213,8 +213,7 @@ pub fn handle_nontick_action(
             }
             if amount != food_amount as u128 {
                 return Err(format!(
-                    "Invalid amount in Oranj blob. Expected {}, got {}",
-                    food_amount, amount
+                    "Invalid amount in Oranj blob. Expected {food_amount}, got {amount}"
                 ));
             }
 
@@ -259,8 +258,7 @@ pub fn handle_nontick_action(
             }
             if amount != sweets_amount as u128 {
                 return Err(format!(
-                    "Invalid amount in oxygen blob. Expected {}, got {}",
-                    sweets_amount, amount
+                    "Invalid amount in oxygen blob. Expected {sweets_amount}, got {amount}"
                 ));
             }
 
@@ -305,8 +303,7 @@ pub fn handle_nontick_action(
             }
             if amount != vitamins_amount as u128 {
                 return Err(format!(
-                    "Invalid amount in vitamin blob. Expected {}, got {}",
-                    vitamins_amount, amount
+                    "Invalid amount in vitamin blob. Expected {vitamins_amount}, got {amount}"
                 ));
             }
             gotchi.feed_vitamins(vitamins_amount, tx_ctx.block_height.0, &tx_ctx.block_hash)
@@ -384,13 +381,8 @@ impl HyliGotchi {
 
     fn random_death(&mut self, rng: &mut SipRng, block_height: u64) {
         if let HyliGotchiHealth::Sick(since) = self.health {
-            let death_threshold = if block_height < 1_000_000 {
-                100
-            } else {
-                50_000
-            };
-            if block_height - since > death_threshold && rng.random_range(0..=1) == 0 {
-                // If the gotchi has been sick for more than the threshold blocks, it has a chance to die
+            if block_height - since > 50_000 && rng.random_range(0..=1) == 0 {
+                // If the gotchi has been sick for more than 50.000 blocks, it has a chance to die
                 self.health = HyliGotchiHealth::Dead;
                 self.death_count += 1;
             }
@@ -439,7 +431,7 @@ impl Display for HyliGotchiHealth {
             "{}",
             match self {
                 HyliGotchiHealth::Healthy => "Healthy".to_string(),
-                HyliGotchiHealth::Sick(since) => format!("Sick since block {}", since),
+                HyliGotchiHealth::Sick(since) => format!("Sick since block {since}"),
                 HyliGotchiHealth::Dead => "Dead".to_string(),
             },
         )
@@ -692,8 +684,7 @@ impl crate::client::HyliGotchiWorld {
             .0
             .store()
             .leaves_map()
-            .iter()
-            .map(|(key, _)| key)
+            .keys()
             .cloned()
             .collect::<Vec<_>>();
         keys.sort(); // Need deterministic ordering.
@@ -743,7 +734,7 @@ impl crate::client::HyliGotchiWorld {
             self.gotchis
                 .0
                 .update(key, gotchi)
-                .map_err(|e| format!("Failed to update gotchi: {}", e))?;
+                .map_err(|e| format!("Failed to update gotchi: {e}"))?;
         }
 
         info!("Random: {}", rng.random::<u8>());
