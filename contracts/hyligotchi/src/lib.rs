@@ -208,8 +208,8 @@ pub fn handle_nontick_action(
             if sender != *user {
                 return Err("You can only feed your own gotchi".to_string());
             }
-            if recipient != "hyligotchi".into() {
-                return Err("You have to send oranj to the hyligotchi contract".to_string());
+            if recipient != "hyligotchi2".into() {
+                return Err("You have to send oranj to the hyligotchi2 contract".to_string());
             }
             if amount != food_amount as u128 {
                 return Err(format!(
@@ -253,8 +253,8 @@ pub fn handle_nontick_action(
             if sender != *user {
                 return Err("You can only feed your own gotchi".to_string());
             }
-            if recipient != "hyligotchi".into() {
-                return Err("You have to send oxygen to the hyligotchi contract".to_string());
+            if recipient != "hyligotchi2".into() {
+                return Err("You have to send oxygen to the hyligotchi2 contract".to_string());
             }
             if amount != sweets_amount as u128 {
                 return Err(format!(
@@ -298,8 +298,8 @@ pub fn handle_nontick_action(
             if sender != *user {
                 return Err("You can only feed your own gotchi".to_string());
             }
-            if recipient != "hyligotchi".into() {
-                return Err("You have to send vitamins to the hyligotchi contract".to_string());
+            if recipient != "hyligotchi2".into() {
+                return Err("You have to send vitamins to the hyligotchi2 contract".to_string());
             }
             if amount != vitamins_amount as u128 {
                 return Err(format!(

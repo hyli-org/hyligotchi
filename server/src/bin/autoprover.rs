@@ -26,7 +26,7 @@ pub struct Args {
     #[arg(long, default_value = "config.toml")]
     pub config_file: Vec<String>,
 
-    #[arg(long, default_value = "hyligotchi")]
+    #[arg(long, default_value = "hyligotchi2")]
     pub contract_name: String,
 }
 

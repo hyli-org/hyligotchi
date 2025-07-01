@@ -43,7 +43,7 @@ pub struct Args {
     /// The configuration file(s) to use.
     pub config_file: Vec<String>,
 
-    #[arg(long, default_value = "hyligotchi")]
+    #[arg(long, default_value = "hyligotchi2")]
     /// The name of the contract to initialize.
     pub contract_name: String,
 
