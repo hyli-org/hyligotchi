@@ -2,6 +2,8 @@ use anyhow::{Context, Result};
 use app::{AppModule, AppModuleCtx};
 use axum::Router;
 use clap::Parser;
+use client_sdk::helpers::test::TxExecutorTestProver;
+use client_sdk::helpers::ClientSdkProver;
 use client_sdk::rest_client::{IndexerApiHttpClient, NodeApiHttpClient};
 use client_sdk::transaction_builder::TxExecutorHandler;
 use hyle_modules::{
@@ -16,8 +18,10 @@ use hyle_modules::{
     utils::logger::setup_tracing,
 };
 use hyligotchi::client::{HyliGotchiWorld, HyliGotchiWorldConstructor};
+use hyligotchi::HyliGotchiWorldZkView;
 use prometheus::Registry;
 use sdk::api::NodeInfo;
+use sdk::Calldata;
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use server::conf::Conf;
 use server::utils::load_pk;
@@ -80,7 +84,7 @@ async fn main() -> Result<()> {
     );
 
     let pk = load_pk(&config.data_directory);
-    let prover = client_sdk::helpers::sp1::SP1Prover::new(pk).await;
+    let program_id = serde_json::to_vec(&pk.vk)?; // Done manually to allow turning off SP1
 
     let secp = Secp256k1::new();
     let secret_key =
@@ -100,7 +104,7 @@ async fn main() -> Result<()> {
     if !args.noinit {
         let contracts = vec![init::ContractInit {
             name: args.contract_name.clone().into(),
-            program_id: prover.program_id().expect("getting program id").0,
+            program_id,
             initial_state: world.get_state_commitment(),
             constructor_metadata: Some(
                 borsh::to_vec(&constructor).context("encoding constructor")?,
@@ -165,27 +169,33 @@ async fn main() -> Result<()> {
         })
         .await?;
 
-    if config.prover {
-        info!("Prover module enabled, initializing...");
-        handler
-            .build_module::<AutoProver<HyliGotchiWorld>>(
-                AutoProverCtx {
-                    data_directory: config.data_directory.clone(),
-                    prover: Arc::new(prover),
-                    contract_name: app_ctx.hyligotchi_cn.clone(),
-                    node: app_ctx.node_client.clone(),
-                    default_state: world.clone(),
-                    buffer_blocks: config.buffer_blocks,
-                    max_txs_per_proof: config.max_txs_per_proof,
-                    tx_working_window_size: config.tx_working_window_size,
-                    api: Some(build_api_ctx.clone()),
-                }
-                .into(),
-            )
-            .await?;
+    // Always initialize the auto-prover as we use its state update for API calls.
+    let prover: Arc<dyn ClientSdkProver<Vec<Calldata>> + Send + Sync> = if config.prover {
+        info!("Prover is enabled, initializing SP1 prover");
+        Arc::new(client_sdk::helpers::sp1::SP1Prover::new(pk).await)
     } else {
-        info!("Prover module disabled, skipping initialization.");
-    }
+        // If prover if off, we're using it for execution - don't generate or send proofs.
+        info!("Prover is disabled, using TxExecutorTestProver for execution");
+        std::env::set_var("HYLE_PROVER_NOSEND", "1");
+        Arc::new(TxExecutorTestProver::<HyliGotchiWorldZkView>::new())
+    };
+
+    handler
+        .build_module::<AutoProver<HyliGotchiWorld>>(
+            AutoProverCtx {
+                data_directory: config.data_directory.clone(),
+                prover,
+                contract_name: app_ctx.hyligotchi_cn.clone(),
+                node: app_ctx.node_client.clone(),
+                default_state: world.clone(),
+                buffer_blocks: config.buffer_blocks,
+                max_txs_per_proof: config.max_txs_per_proof,
+                tx_working_window_size: config.tx_working_window_size,
+                api: Some(build_api_ctx.clone()),
+            }
+            .into(),
+        )
+        .await?;
 
     handler
         .build_module::<DAListener>(DAListenerConf {

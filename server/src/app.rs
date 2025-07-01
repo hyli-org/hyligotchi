@@ -402,7 +402,7 @@ async fn send(
         AppModuleBusClient::new_from_bus(app.bus.new_handle()).await
     };
 
-    tokio::time::timeout(Duration::from_secs(5), async {
+    tokio::time::timeout(Duration::from_secs(30), async {
         loop {
             let a = bus.recv().await?;
             match a {
