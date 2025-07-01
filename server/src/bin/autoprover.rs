@@ -72,7 +72,8 @@ async fn main() -> Result<()> {
             "0000000000000001000000000000000100000000000000010000000000000001".to_string(),
         ))
         .expect("HYLIGOTCHI_PUBKEY must be a hex string");
-    let secret_key = SecretKey::from_slice(&secret_key).expect("32 bytes, within curve order");
+    let secret_key = SecretKey::from_byte_array(secret_key.try_into().expect("32 bytes"))
+        .expect("32 bytes, within curve order");
     let public_key = PublicKey::from_secret_key(&secp, &secret_key);
 
     let constructor = HyliGotchiWorldConstructor {
