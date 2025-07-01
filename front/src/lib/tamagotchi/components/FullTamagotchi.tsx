@@ -540,9 +540,11 @@ const FullTamagotchi: React.FC<FullTamagotchiProps> = ({
           setIsCreatingTamagotchi(false);
         } catch (err: any) {
           console.error('Init error:', err);
-          // Reset flags on error so user can retry
-          setHasExistingTamagotchi(false);
+          // Don't reset flags here - this causes infinite loop!
+          // Keep isCreatingTamagotchi as false but don't reset hasExistingTamagotchi
           setIsCreatingTamagotchi(false);
+          // Show init pending screen instead
+          setShowInitPending(true);
         }
       }
     };
