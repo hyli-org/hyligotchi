@@ -5,7 +5,7 @@ use hyle_modules::{
     modules::{signal::shutdown_aware, Module},
 };
 use hyligotchi::HyliGotchiAction;
-use sdk::{verifiers::Secp256k1Blob, Blob, BlobTransaction, Identity};
+use sdk::{verifiers::Secp256k1Blob, Blob, BlobTransaction, ContractName, Identity};
 use secp256k1::Message;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
@@ -20,10 +20,16 @@ pub struct TickerModule {
     interval: u64,
     node_client: Arc<NodeApiHttpClient>,
     crypto_context: Arc<CryptoContext>,
+    contract_name: ContractName,
 }
 
 impl Module for TickerModule {
-    type Context = (Arc<NodeApiHttpClient>, Arc<CryptoContext>, u64);
+    type Context = (
+        Arc<NodeApiHttpClient>,
+        Arc<CryptoContext>,
+        u64,
+        ContractName,
+    );
 
     async fn build(
         bus: hyle_modules::bus::SharedMessageBus,
@@ -34,6 +40,7 @@ impl Module for TickerModule {
             interval: ctx.2, // 10 minutes in seconds
             node_client: ctx.0,
             crypto_context: ctx.1,
+            contract_name: ctx.3,
         })
     }
 
@@ -67,7 +74,7 @@ impl Module for TickerModule {
                 )?;
 
                 // Create the Tick action blob
-                let action_blob = HyliGotchiAction::Tick(now).as_blob("hyligotchi".into());
+                let action_blob = HyliGotchiAction::Tick(now).as_blob(self.contract_name.clone());
 
                 // Send the transaction
                 let tx_hash = node_client

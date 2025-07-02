@@ -238,6 +238,7 @@ async fn main() -> Result<()> {
             app_ctx.node_client.clone(),
             app_ctx.crypto_context.clone(),
             config.tick_interval_secs,
+            app_ctx.hyligotchi_cn.clone(),
         ))
         .await?;
 
